@@ -31,17 +31,19 @@ jobs:
       version: ${{ steps.version.outputs.value }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Check inputs
         if: inputs.major == 0 && inputs.minor == 0 && inputs.patch == 0
         run: |
+          set -euo pipefail
           echo "All version bumps are 0, nothing to release"
           exit 1
 
       - name: Set version
         id: version
         run: |
+          set -euo pipefail
           CURRENT=$(grep -oP '(?<=INSTALLER_VERSION = ")[^"]+' source/constants.d)
           IFS='.' read -r CUR_MAJOR CUR_MINOR CUR_PATCH <<< "$CURRENT"
           NEW_MAJOR=$(( CUR_MAJOR + ${{ inputs.major }} ))
@@ -73,10 +75,11 @@ jobs:
     runs-on: ${{ matrix.runs-on }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Patch version
         run: |
+          set -euo pipefail
           VERSION="${{ needs.prepare.outputs.version }}"
           sed -i "s/enum string INSTALLER_VERSION = \".*\";/enum string INSTALLER_VERSION = \"$VERSION\";/" source/constants.d
           grep -q "INSTALLER_VERSION = \"$VERSION\"" source/constants.d \
@@ -84,11 +87,12 @@ jobs:
 
       - name: Install GTK4
         run: |
+          set -euo pipefail
           sudo apt-get update -y
           sudo apt-get install -y --no-install-recommends libgtk-4-dev
 
       - name: Set up D
-        uses: dlang-community/setup-dlang@v2
+        uses: dlang-community/setup-dlang@0a7469b93f791d83f30932c6fd105796c6966e20 # v2.0.0
         with:
           compiler: ${{ matrix.compiler }}
 
@@ -103,6 +107,7 @@ jobs:
 
       - name: Package
         run: |
+          set -euo pipefail
           VERSION="${{ needs.prepare.outputs.version }}"
           ARCH="${{ matrix.arch }}"
           ARCHIVE="AppImage_Installer-${VERSION}-${ARCH}.tar.gz"
@@ -113,7 +118,7 @@ jobs:
           cat "${ARCHIVE}.sha256"
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: build-${{ matrix.arch }}
           path: |
@@ -128,18 +133,19 @@ jobs:
       contents: write
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Download artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           pattern: build-*
           merge-multiple: true
 
       - name: Verify checksums
         run: |
+          set -euo pipefail
           for f in AppImage_Installer-*.tar.gz; do
             echo "Verifying $f..."
             sha256sum --check "${f}.sha256"
@@ -147,6 +153,7 @@ jobs:
 
       - name: Build release notes
         run: |
+          set -euo pipefail
           FIRST=true
           {
             for ARCH in x86_64 aarch64; do
@@ -158,8 +165,9 @@ jobs:
                 echo ""
               fi
               FIRST=false
-              ARC_SHA_FILE=$(ls AppImage_Installer-*-${ARCH}.tar.gz.sha256 2>/dev/null | head -1)
-              ARCHIVE=$(basename "${ARC_SHA_FILE%.sha256}" 2>/dev/null || true)
+              ARC_SHA_FILES=(AppImage_Installer-*-${ARCH}.tar.gz.sha256)
+              ARC_SHA_FILE="${ARC_SHA_FILES[0]}"
+              ARCHIVE=$(basename "${ARC_SHA_FILE%.sha256}")
               BIN_SHA=$(awk '{print $1}' "$BIN_SHA_FILE")
               ARC_SHA=$(awk '{print $1}' "$ARC_SHA_FILE")
               echo "## ${ARCH}"
@@ -177,6 +185,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          set -euo pipefail
           VERSION="${{ needs.prepare.outputs.version }}"
           gh release create "$VERSION" \
             AppImage_Installer-*.tar.gz \
@@ -186,6 +195,7 @@ jobs:
 
       - name: Push version bump
         run: |
+          set -euo pipefail
           VERSION="${{ needs.prepare.outputs.version }}"
           sed -i "s/enum string INSTALLER_VERSION = \".*\";/enum string INSTALLER_VERSION = \"$VERSION\";/" source/constants.d
           git config user.name "github-actions[bot]"
