@@ -86,8 +86,9 @@ if command -v systemctl &>/dev/null && systemctl --user is-system-running &>/dev
 	if ask "Install a background service to check for application updates?"; then
 		echo "  -> A systemd user timer will run ${BINARY} --background-update on a timer"
 		mkdir -p "${SYSTEMD_DIR}"
-		"${INSTALL_DIR}/${BINARY}" --systemd-service "${SYSTEMD_DIR} --check-interval 24"
-		"${INSTALL_DIR}/${BINARY}" --systemd-timer "${SYSTEMD_DIR}"
+		"${INSTALL_DIR}/${BINARY}" --check-interval 24 --auto-update false \
+			--systemd-service "${SYSTEMD_DIR}"
+		"${INSTALL_DIR}/${BINARY}" --timer-interval 4 --systemd-timer "${SYSTEMD_DIR}"
 		systemctl --user daemon-reload
 		systemctl --user enable --now appimage-installer-update.timer
 		echo "  -> Background update timer enabled"

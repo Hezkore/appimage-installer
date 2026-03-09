@@ -213,7 +213,9 @@ public string readDesktopFieldLocalized(string path, string key, string locale) 
 }
 
 // Writes a systemd user service unit that runs the background update check
-public bool writeSystemdServiceFile(string destPath, int checkIntervalHours, out string error) {
+public bool writeSystemdServiceFile(
+	string destPath, int checkIntervalHours, bool autoUpdate,
+	out string error) {
 	import std.file : write, FileException, mkdirRecurse, thisExePath;
 	import std.path : dirName;
 	import std.conv : to;
@@ -229,7 +231,9 @@ public bool writeSystemdServiceFile(string destPath, int checkIntervalHours, out
 				~ "ExecStart=" ~ thisExePath()
 				~ " --background-update --check-interval "
 				~ to!string(
-					checkIntervalHours) ~ "\n");
+					checkIntervalHours)
+				~ " --auto-update "
+				~ (autoUpdate ? "true" : "false") ~ "\n");
 	} catch (FileException fileException) {
 		error = fileException.msg;
 		return false;
@@ -237,10 +241,12 @@ public bool writeSystemdServiceFile(string destPath, int checkIntervalHours, out
 	return true;
 }
 
-// Writes a systemd user timer unit that triggers the update service every 4 hours
-public bool writeSystemdTimerFile(string destPath, out string error) {
+// Writes a systemd user timer unit that triggers the update service
+public bool writeSystemdTimerFile(
+	string destPath, int timerIntervalHours, out string error) {
 	import std.file : write, FileException, mkdirRecurse;
 	import std.path : dirName;
+	import std.conv : to;
 
 	try {
 		mkdirRecurse(dirName(destPath));
@@ -250,7 +256,8 @@ public bool writeSystemdTimerFile(string destPath, out string error) {
 				~ "\n"
 				~ "[Timer]\n"
 				~ "OnBootSec=5min\n"
-				~ "OnUnitActiveSec=4h\n"
+				~ "OnUnitActiveSec=" ~ to!string(
+					timerIntervalHours) ~ "h\n"
 				~ "Persistent=true\n"
 				~ "\n"
 				~ "[Install]\n"
@@ -601,6 +608,163 @@ public void writeConfigInstallDir(string dir) {
 		json["installDir"] = dir;
 	else if ("installDir" in json)
 		json.object.remove("installDir");
+	try {
+		mkdirRecurse(dirName(path));
+		write(path, json.toPrettyString() ~ "\n");
+	} catch (FileException) {
+	}
+}
+
+// Returns the path to the systemd user unit directory
+public string systemdUserDir() {
+	return buildPath(xdgConfigHome(), "systemd", "user");
+}
+
+// True if the background update timer unit file is present in the systemd user dir
+public bool isSystemdTimerInstalled() {
+	import std.file : exists;
+
+	return exists(
+		buildPath(systemdUserDir(), "appimage-installer-update.timer"));
+}
+
+// Reads the background update check interval from config.json, defaults to 24
+public int readConfigCheckIntervalHours() {
+	import std.json : parseJSON, JSONType, JSONException;
+	import std.file : exists, readText, FileException;
+	import constants : CONFIG_FILE_NAME;
+
+	string path = buildPath(configDir(), CONFIG_FILE_NAME);
+	if (!exists(path))
+		return 24;
+	try {
+		auto json = parseJSON(readText(path));
+		if (auto v = "checkIntervalHours" in json)
+			if (v.type == JSONType.integer)
+				return cast(int) v.integer;
+	} catch (JSONException) {
+	} catch (FileException) {
+	}
+	return 24;
+}
+
+// Writes the background update check interval to config.json
+public void writeConfigCheckIntervalHours(int hours) {
+	import std.json : parseJSON, JSONValue, JSONException;
+	import std.file : exists, readText, write, mkdirRecurse, FileException;
+	import std.path : dirName;
+	import constants : CONFIG_FILE_NAME;
+
+	string path = buildPath(configDir(), CONFIG_FILE_NAME);
+	JSONValue json;
+	if (exists(path)) {
+		try {
+			json = parseJSON(readText(path));
+		} catch (JSONException) {
+			json = JSONValue.emptyObject;
+		} catch (FileException) {
+			json = JSONValue.emptyObject;
+		}
+	} else {
+		json = JSONValue.emptyObject;
+	}
+	json["checkIntervalHours"] = hours;
+	try {
+		mkdirRecurse(dirName(path));
+		write(path, json.toPrettyString() ~ "\n");
+	} catch (FileException) {
+	}
+}
+
+// Reads the auto-update flag from config.json, defaults to false
+public bool readConfigAutoUpdate() {
+	import std.json : parseJSON, JSONType, JSONException;
+	import std.file : exists, readText, FileException;
+	import constants : CONFIG_FILE_NAME;
+
+	string path = buildPath(configDir(), CONFIG_FILE_NAME);
+	if (!exists(path))
+		return false;
+	try {
+		auto json = parseJSON(readText(path));
+		if (auto v = "autoUpdate" in json)
+			if (v.type == JSONType.true_ || v.type == JSONType.false_)
+				return v.type == JSONType.true_;
+	} catch (JSONException) {
+	} catch (FileException) {
+	}
+	return false;
+}
+
+// Writes the auto-update flag to config.json
+public void writeConfigAutoUpdate(bool value) {
+	import std.json : parseJSON, JSONValue, JSONException;
+	import std.file : exists, readText, write, mkdirRecurse, FileException;
+	import std.path : dirName;
+	import constants : CONFIG_FILE_NAME;
+
+	string path = buildPath(configDir(), CONFIG_FILE_NAME);
+	JSONValue json;
+	if (exists(path)) {
+		try {
+			json = parseJSON(readText(path));
+		} catch (JSONException) {
+			json = JSONValue.emptyObject;
+		} catch (FileException) {
+			json = JSONValue.emptyObject;
+		}
+	} else {
+		json = JSONValue.emptyObject;
+	}
+	json["autoUpdate"] = value;
+	try {
+		mkdirRecurse(dirName(path));
+		write(path, json.toPrettyString() ~ "\n");
+	} catch (FileException) {
+	}
+}
+
+// Reads the systemd timer fire interval from config.json, defaults to 4
+public int readConfigTimerIntervalHours() {
+	import std.json : parseJSON, JSONType, JSONException;
+	import std.file : exists, readText, FileException;
+	import constants : CONFIG_FILE_NAME;
+
+	string path = buildPath(configDir(), CONFIG_FILE_NAME);
+	if (!exists(path))
+		return 4;
+	try {
+		auto json = parseJSON(readText(path));
+		if (auto v = "timerIntervalHours" in json)
+			if (v.type == JSONType.integer)
+				return cast(int) v.integer;
+	} catch (JSONException) {
+	} catch (FileException) {
+	}
+	return 4;
+}
+
+// Writes the systemd timer fire interval to config.json
+public void writeConfigTimerIntervalHours(int hours) {
+	import std.json : parseJSON, JSONValue, JSONException;
+	import std.file : exists, readText, write, mkdirRecurse, FileException;
+	import std.path : dirName;
+	import constants : CONFIG_FILE_NAME;
+
+	string path = buildPath(configDir(), CONFIG_FILE_NAME);
+	JSONValue json;
+	if (exists(path)) {
+		try {
+			json = parseJSON(readText(path));
+		} catch (JSONException) {
+			json = JSONValue.emptyObject;
+		} catch (FileException) {
+			json = JSONValue.emptyObject;
+		}
+	} else {
+		json = JSONValue.emptyObject;
+	}
+	json["timerIntervalHours"] = hours;
 	try {
 		mkdirRecurse(dirName(path));
 		write(path, json.toPrettyString() ~ "\n");

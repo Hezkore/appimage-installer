@@ -32,6 +32,7 @@ struct AppArgs {
 	string targetIconName;
 	string targetDesktopSymlink;
 	int checkIntervalHours;
+	int timerIntervalHours;
 	bool autoUpdate;
 	bool shouldQuit;
 }
@@ -160,9 +161,10 @@ AppArgs parseArgs(string[] rawArgs) {
 		case "--help", "-h":
 			writeln(
 				"Usage: appimage-installer [--install|--uninstall|--desktop|--associate|--background-update] [arg]");
-			writeln("  --background-update [--check-interval <hours>] [--auto-update <true|false>]");
-			writeln("  --systemd-service <dir>  write the background update service unit to <dir>");
-			writeln("  --systemd-timer <dir>    write the background update timer unit to <dir>");
+			writeln("  --background-update --check-interval <hours> [--auto-update <true|false>]");
+			writeln(
+				"  --systemd-service <dir>  requires: --check-interval <hours> [--auto-update <true|false>]");
+			writeln("  --systemd-timer <dir>    requires: --timer-interval <hours>");
 			writeln("  --health                 print install health info for debugging");
 			result.shouldQuit = true;
 			return result;
@@ -209,7 +211,8 @@ AppArgs parseArgs(string[] rawArgs) {
 			}
 			string servicePath = buildPath(serviceDir, "appimage-installer-update.service");
 			string serviceError;
-			if (!writeSystemdServiceFile(servicePath, result.checkIntervalHours, serviceError)) {
+			if (!writeSystemdServiceFile(
+					servicePath, result.checkIntervalHours, result.autoUpdate, serviceError)) {
 				import std.stdio : stderr;
 
 				stderr.writeln("Error: ", serviceError);
@@ -226,9 +229,16 @@ AppArgs parseArgs(string[] rawArgs) {
 				stderr.writeln("Error: --systemd-timer requires a directory path.");
 				return result;
 			}
+			if (result.timerIntervalHours < 1) {
+				import std.stdio : stderr;
+
+				stderr.writeln(
+					"Error: --systemd-timer requires --timer-interval <hours>.");
+				return result;
+			}
 			string timerPath = buildPath(timerDir, "appimage-installer-update.timer");
 			string timerError;
-			if (!writeSystemdTimerFile(timerPath, timerError)) {
+			if (!writeSystemdTimerFile(timerPath, result.timerIntervalHours, timerError)) {
 				import std.stdio : stderr;
 
 				stderr.writeln("Error: ", timerError);
@@ -266,6 +276,27 @@ AppArgs parseArgs(string[] rawArgs) {
 			}
 			if (result.checkIntervalHours < 1) {
 				writeln("Error: --check-interval must be at least 1.");
+				result.shouldQuit = true;
+				return result;
+			}
+			break;
+
+		case "--timer-interval":
+			string timerIntervalStr = takeNext();
+			if (!timerIntervalStr.length) {
+				writeln("Error: --timer-interval requires a number of hours.");
+				result.shouldQuit = true;
+				return result;
+			}
+			try {
+				result.timerIntervalHours = to!int(timerIntervalStr);
+			} catch (ConvException) {
+				writeln("Error: --timer-interval value must be a whole number.");
+				result.shouldQuit = true;
+				return result;
+			}
+			if (result.timerIntervalHours < 1) {
+				writeln("Error: --timer-interval must be at least 1.");
 				result.shouldQuit = true;
 				return result;
 			}

@@ -6,10 +6,13 @@ import std.file : exists, isDir, mkdirRecurse, isSymlink, remove,
 	rename, copy, rmdirRecurse, dirEntries, SpanMode, FileException;
 import std.path : buildPath, baseName;
 import std.stdio : writeln;
+import std.conv : to, ConvException;
+import std.process : execute, ProcessException;
 import std.string : replace, toStringz;
+
 import std.typecons : Yes;
 
-import glib.error : ErrorWrap;
+import gtk.switch_ : Switch;
 import glib.global : idleAdd, timeoutAdd;
 import glib.types : PRIORITY_DEFAULT;
 import gobject.object : ObjectWrap;
@@ -30,9 +33,14 @@ import gtk.scrolled_window : ScrolledWindow;
 import gtk.types : Align, Justification, Orientation, PolicyType,
 	RevealerTransitionType, SelectionMode;
 
+import glib.error : ErrorWrap;
 import appimage.manifest : Manifest;
 import apputils : installBaseDir, readConfigGithubToken, writeConfigGithubToken,
-	readConfigInstallDir, writeConfigInstallDir, xdgDataHome;
+	readConfigInstallDir, writeConfigInstallDir, xdgDataHome,
+	isSystemdTimerInstalled, systemdUserDir, writeSystemdServiceFile,
+	writeSystemdTimerFile, readConfigTimerIntervalHours, writeConfigTimerIntervalHours,
+	readConfigCheckIntervalHours, writeConfigCheckIntervalHours,
+	readConfigAutoUpdate, writeConfigAutoUpdate;
 import constants : APPLICATIONS_SUBDIR, DESKTOP_SUFFIX, DESKTOP_PREFIX, INSTALLER_VERSION;
 import update.checker : checkInstallerUpdate;
 import lang : L;
@@ -316,7 +324,98 @@ public Box buildSettingsBox(
 	dirRow.setChild(dirRowBox);
 	storageList.append(dirRow);
 
-	// Progress revealer shown while migration runs
+	// Background updates section
+	settingsBox.append(makeHeading(L("settings.group.bgupdate")));
+	auto bgupdateList = new ListBox;
+	bgupdateList.setHexpand(true);
+	bgupdateList.addCssClass("boxed-list");
+	bgupdateList.setSelectionMode(SelectionMode.None);
+	settingsBox.append(bgupdateList);
+
+	auto enableRowBox = new Box(Orientation.Horizontal, Layout.rowSpacing);
+	enableRowBox.setMarginTop(Layout.rowPadding);
+	enableRowBox.setMarginBottom(Layout.rowPadding);
+	enableRowBox.setMarginStart(Layout.rowSideMargin);
+	enableRowBox.setMarginEnd(Layout.rowSideMargin);
+	auto enableBgupdateLabel = new Label(L("settings.bgupdate.enable"));
+	enableBgupdateLabel.setHalign(Align.Start);
+	enableBgupdateLabel.setXalign(0.0f);
+	enableBgupdateLabel.setValign(Align.Center);
+	enableBgupdateLabel.setHexpand(true);
+	enableRowBox.append(enableBgupdateLabel);
+	auto enableSwitch = new Switch;
+	enableSwitch.setValign(Align.Center);
+	enableRowBox.append(enableSwitch);
+	auto enableRow = new ListBoxRow;
+	enableRow.setActivatable(false);
+	enableRow.setChild(enableRowBox);
+	bgupdateList.append(enableRow);
+
+	auto intervalRowBox = new Box(Orientation.Horizontal, Layout.rowSpacing);
+	intervalRowBox.setMarginTop(Layout.rowPadding);
+	intervalRowBox.setMarginBottom(Layout.rowPadding);
+	intervalRowBox.setMarginStart(Layout.rowSideMargin);
+	intervalRowBox.setMarginEnd(Layout.rowSideMargin);
+	auto intervalLabel = new Label(L("settings.bgupdate.interval"));
+	intervalLabel.setHalign(Align.Start);
+	intervalLabel.setXalign(0.0f);
+	intervalLabel.setValign(Align.Center);
+	intervalLabel.setSizeRequest(Layout.labelWidth, -1);
+	intervalRowBox.append(intervalLabel);
+	auto intervalEntry = new Entry;
+	intervalEntry.setHexpand(true);
+	intervalEntry.setValign(Align.Center);
+	intervalRowBox.append(intervalEntry);
+	auto intervalUnitLabel = new Label(L("settings.bgupdate.interval.unit"));
+	intervalUnitLabel.setValign(Align.Center);
+	intervalRowBox.append(intervalUnitLabel);
+	auto intervalRow = new ListBoxRow;
+	intervalRow.setActivatable(false);
+	intervalRow.setChild(intervalRowBox);
+	bgupdateList.append(intervalRow);
+
+	auto fetchRowBox = new Box(Orientation.Horizontal, Layout.rowSpacing);
+	fetchRowBox.setMarginTop(Layout.rowPadding);
+	fetchRowBox.setMarginBottom(Layout.rowPadding);
+	fetchRowBox.setMarginStart(Layout.rowSideMargin);
+	fetchRowBox.setMarginEnd(Layout.rowSideMargin);
+	auto fetchLabel = new Label(L("settings.bgupdate.fetch_interval"));
+	fetchLabel.setHalign(Align.Start);
+	fetchLabel.setXalign(0.0f);
+	fetchLabel.setValign(Align.Center);
+	fetchLabel.setSizeRequest(Layout.labelWidth, -1);
+	fetchRowBox.append(fetchLabel);
+	auto fetchEntry = new Entry;
+	fetchEntry.setHexpand(true);
+	fetchEntry.setValign(Align.Center);
+	fetchRowBox.append(fetchEntry);
+	auto fetchUnitLabel = new Label(L("settings.bgupdate.interval.unit"));
+	fetchUnitLabel.setValign(Align.Center);
+	fetchRowBox.append(fetchUnitLabel);
+	auto fetchRow = new ListBoxRow;
+	fetchRow.setActivatable(false);
+	fetchRow.setChild(fetchRowBox);
+	bgupdateList.append(fetchRow);
+
+	auto autoUpdateRowBox = new Box(Orientation.Horizontal, Layout.rowSpacing);
+	autoUpdateRowBox.setMarginTop(Layout.rowPadding);
+	autoUpdateRowBox.setMarginBottom(Layout.rowPadding);
+	autoUpdateRowBox.setMarginStart(Layout.rowSideMargin);
+	autoUpdateRowBox.setMarginEnd(Layout.rowSideMargin);
+	auto autoUpdateLabel = new Label(L("settings.bgupdate.autoupdate"));
+	autoUpdateLabel.setHalign(Align.Start);
+	autoUpdateLabel.setXalign(0.0f);
+	autoUpdateLabel.setValign(Align.Center);
+	autoUpdateLabel.setHexpand(true);
+	autoUpdateRowBox.append(autoUpdateLabel);
+	auto autoUpdateSwitch = new Switch;
+	autoUpdateSwitch.setValign(Align.Center);
+	autoUpdateRowBox.append(autoUpdateSwitch);
+	auto autoUpdateRow = new ListBoxRow;
+	autoUpdateRow.setActivatable(false);
+	autoUpdateRow.setChild(autoUpdateRowBox);
+	bgupdateList.append(autoUpdateRow);
+
 	auto progressBar = new ProgressBar;
 	progressBar.setHexpand(true);
 	progressBar.setShowText(true);
@@ -339,15 +438,46 @@ public Box buildSettingsBox(
 
 	string initialToken = tokenEntry.getText();
 	string initialDir = dirEntry.getText();
+	bool initialBgupdateEnabled = isSystemdTimerInstalled();
+	int initialTimerHours = readConfigTimerIntervalHours();
+	int initialFetchHours = readConfigCheckIntervalHours();
+	bool initialAutoUpdate = readConfigAutoUpdate();
+	enableSwitch.setActive(initialBgupdateEnabled);
+	intervalEntry.setText(to!string(initialTimerHours));
+	fetchEntry.setText(to!string(initialFetchHours));
+	autoUpdateSwitch.setActive(initialAutoUpdate);
+	intervalRow.setVisible(initialBgupdateEnabled);
+	fetchRow.setVisible(initialBgupdateEnabled);
+	autoUpdateRow.setVisible(initialBgupdateEnabled);
 
 	void updateSaveSensitive() {
+		bool bgupdateChanged =
+			enableSwitch.getActive() != initialBgupdateEnabled
+			|| (enableSwitch.getActive() && (
+					intervalEntry.getText() != to!string(initialTimerHours)
+					|| fetchEntry.getText() != to!string(initialFetchHours)
+					|| autoUpdateSwitch.getActive() != initialAutoUpdate));
 		saveButton.setSensitive(
 			tokenEntry.getText() != initialToken
-				|| dirEntry.getText() != initialDir);
+				|| dirEntry.getText() != initialDir
+				|| bgupdateChanged);
 	}
 
 	tokenEntry.connectChanged(() { updateSaveSensitive(); });
 	dirEntry.connectChanged(() { updateSaveSensitive(); });
+	enableSwitch.connectStateSet((bool state) {
+		intervalRow.setVisible(state);
+		fetchRow.setVisible(state);
+		autoUpdateRow.setVisible(state);
+		updateSaveSensitive();
+		return false;
+	});
+	intervalEntry.connectChanged(() { updateSaveSensitive(); });
+	fetchEntry.connectChanged(() { updateSaveSensitive(); });
+	autoUpdateSwitch.connectStateSet((bool state) {
+		updateSaveSensitive();
+		return false;
+	});
 
 	auto outerBox = new Box(Orientation.Vertical, 0);
 	outerBox.setHexpand(true);
@@ -402,6 +532,74 @@ public Box buildSettingsBox(
 		bool dirChanged = (newDir != oldDir);
 
 		writeConfigGithubToken(newToken);
+
+		// Handle background update settings
+		bool newEnabled = enableSwitch.getActive();
+		int newTimerHours = 4;
+		try {
+			newTimerHours = to!int(intervalEntry.getText());
+		} catch (ConvException) {
+		}
+		if (newTimerHours < 1)
+			newTimerHours = 1;
+		int newFetchHours = 24;
+		try {
+			newFetchHours = to!int(fetchEntry.getText());
+		} catch (ConvException) {
+		}
+		if (newFetchHours < 1)
+			newFetchHours = 1;
+		bool newAutoUpdateValue = autoUpdateSwitch.getActive();
+		string svcDir = systemdUserDir();
+		string svcPath = buildPath(
+			svcDir, "appimage-installer-update.service");
+		string timerPath = buildPath(
+			svcDir, "appimage-installer-update.timer");
+		if (newEnabled) {
+			string svcError;
+			writeSystemdServiceFile(
+				svcPath, newFetchHours, newAutoUpdateValue, svcError);
+			if (svcError.length)
+				writeln("settings: ", svcError);
+			string timerError;
+			writeSystemdTimerFile(timerPath, newTimerHours, timerError);
+			if (timerError.length)
+				writeln("settings: ", timerError);
+			try {
+				execute(["systemctl", "--user", "daemon-reload"]);
+				if (!initialBgupdateEnabled)
+					execute([
+						"systemctl", "--user", "enable",
+						"--now", "appimage-installer-update.timer"
+					]);
+			} catch (ProcessException) {
+			}
+		} else if (initialBgupdateEnabled) {
+			try {
+				execute([
+					"systemctl", "--user", "disable",
+					"--now", "appimage-installer-update.timer"
+				]);
+			} catch (ProcessException) {
+			}
+			try {
+				if (exists(svcPath))
+					remove(svcPath);
+			} catch (FileException) {
+			}
+			try {
+				if (exists(timerPath))
+					remove(timerPath);
+			} catch (FileException) {
+			}
+		}
+		writeConfigTimerIntervalHours(newTimerHours);
+		writeConfigCheckIntervalHours(newFetchHours);
+		writeConfigAutoUpdate(newAutoUpdateValue);
+		initialBgupdateEnabled = newEnabled;
+		initialTimerHours = newTimerHours;
+		initialFetchHours = newFetchHours;
+		initialAutoUpdate = newAutoUpdateValue;
 
 		if (!dirChanged) {
 			win.headerBar.remove(backButton);

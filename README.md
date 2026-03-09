@@ -1,3 +1,5 @@
+# AppImage Installer
+
 A desktop application for Linux that installs [AppImage](https://appimage.org) files and gives them proper desktop integration.\
 Extremely fast and lightweight.
 
@@ -67,11 +69,13 @@ Register it as the default handler for `.AppImage` files:
 appimage-installer --associate
 ```
 
-Optionally enable the background update timer:
+Optionally enable the background update service.
+`--check-interval` sets the minimum hours between actual network requests, enforced via a local state file.
+`--timer-interval` sets how often systemd fires the service to see if a fetch is due:
 
 ```sh
-appimage-installer --systemd-service ~/.config/systemd/user --check-interval 1 --auto-update false
-appimage-installer --systemd-timer ~/.config/systemd/user
+appimage-installer --check-interval 24 --auto-update false --systemd-service ~/.config/systemd/user
+appimage-installer --timer-interval 4 --systemd-timer ~/.config/systemd/user
 systemctl --user daemon-reload
 systemctl --user enable --now appimage-installer-update.timer
 ```
