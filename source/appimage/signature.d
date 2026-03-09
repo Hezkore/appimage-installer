@@ -12,7 +12,7 @@ import std.digest : digest;
 
 // Result of a signature check on a downloaded AppImage
 public enum SignatureStatus {
-	// No .sha256_sig section found — file is unsigned
+	// No .sha256_sig section found - file is unsigned
 	None,
 	// Signature present and gpg confirmed it as valid
 	Verified,

@@ -140,7 +140,7 @@ void applyGlobalStyles() {
 		.row-chevron { opacity: 0.4; }
 		.row-chevron.open { opacity: 0.9; }
 
-		/* Entry placeholder text — GTK4 node path: entry > text > placeholder */
+		/* Entry placeholder text - GTK4 node path: entry > text > placeholder */
 		entry > text > placeholder { opacity: 0.45; }
 	`;
 	cssProvider.loadFromData(css, css.length);

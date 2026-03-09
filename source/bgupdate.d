@@ -75,23 +75,23 @@ private bool tryClaimPidFile(out int existingPid) {
 			return true;
 		}
 
-		// File exists — check if it belongs to a live instance of this binary
+		// File exists - check if it belongs to a live instance of this binary
 		try {
 			existingPid = to!int(readText(path).strip());
 			try {
 				if (readLink(PROC_DIRECTORY ~ "/" ~ to!string(existingPid) ~ "/exe") == thisExePath())
 					return false; // genuine bgupdate instance holds the file
-				// PID belongs to a different binary — recycled, treat as stale
+				// PID belongs to a different binary - recycled, treat as stale
 			} catch (FileException) {
-				// Process exited between readText and readLink — treat as stale
+				// Process exited between readText and readLink - treat as stale
 			}
 		} catch (ConvException) {
-			// Corrupted file — fall through to stale cleanup
+			// Corrupted file - fall through to stale cleanup
 		} catch (FileException) {
 			continue; // file vanished between open and readText, retry
 		}
 
-		// Stale file — remove and let the loop retry O_CREAT|O_EXCL
+		// Stale file - remove and let the loop retry O_CREAT|O_EXCL
 		try {
 			remove(path);
 		} catch (FileException) {

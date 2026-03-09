@@ -607,7 +607,7 @@ public Box buildSettingsBox(
 			return;
 		}
 
-		// Directory changed — migrate all app directories to the new location
+		// Directory changed - migrate all app directories to the new location
 		saveButton.setSensitive(false);
 		backButton.setSensitive(false);
 		browseButton.setSensitive(false);

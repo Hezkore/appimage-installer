@@ -735,7 +735,7 @@ Box buildOptionsBox(
 		} else if (plingList.getVisible()) {
 			string newPlingProductId = plingProductIdEntry.getText().strip();
 			if (newPlingProductId != currentPlingProductId) {
-				// Product ID changed — drop the old baseline; the next
+				// Product ID changed - drop the old baseline; the next
 				// update check will compare against the installed file instead
 				currentUpdateInfo = "pling-v1-zsync|" ~ newPlingProductId;
 				installedAppManifest.updateInfo = currentUpdateInfo;

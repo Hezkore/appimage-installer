@@ -114,7 +114,7 @@ package void showOrphanBanner(ManageWindow win, string appName) {
 	win.bannerRevealer.setRevealChild(true);
 }
 
-// Handles an app directory disappearing — marks it orphan and updates the row
+// Handles an app directory disappearing - marks it orphan and updates the row
 private void handleAppGone(ManageWindow win, size_t index) {
 	auto ref entry = win.installedApps[index];
 	if (entry.isOrphan)
