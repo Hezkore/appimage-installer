@@ -36,9 +36,9 @@ import gio.async_result : AsyncResult;
 import gobject.object : ObjectWrap;
 import std.typecons : Yes, No;
 
+import windows.install.helpers;
 import windows.base : AppWindow, ACTION_BTN_WIDTH, ACTION_BTN_HEIGHT, REVEAL_MS, makeLangButton;
 import windows.base : CONTENT_REVEAL_DELAY_MS, ACTION_REVEAL_DELAY_MS;
-import windows.install.helpers;
 import application : App;
 import appimage : AppImage;
 import appimage.signature : SignatureStatus;
@@ -321,6 +321,18 @@ class InstallWindow : AppWindow {
 		}
 
 		auto sigRow = buildInfoRow(sigIcon, L("install.info.signature"), sigValue);
+		if (this.appImage.signatureStatus == SignatureStatus.Invalid) {
+			// Walk icon → textColumn → valueLabel (second child of textColumn)
+			auto textColumn = cast(Box) sigRow.getLastChild();
+			if (textColumn !is null) {
+				auto valueLabel = cast(Label) textColumn.getLastChild();
+				if (valueLabel !is null) {
+					valueLabel.removeCssClass("dim-label");
+					valueLabel.addCssClass("error");
+					valueLabel.addCssClass("heading");
+				}
+			}
+		}
 		auto sigListRow = new ListBoxRow;
 		if (sigHasSection) {
 			auto sigChevron = Image.newFromIconName("pan-end-symbolic");
