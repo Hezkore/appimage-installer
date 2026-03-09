@@ -106,7 +106,9 @@ jobs:
           VERSION="${{ needs.prepare.outputs.version }}"
           ARCH="${{ matrix.arch }}"
           ARCHIVE="AppImage_Installer-${VERSION}-${ARCH}.tar.gz"
-          tar czf "$ARCHIVE" appimage-installer README.md
+          sha256sum appimage-installer > appimage-installer.sha256
+          tar czf "$ARCHIVE" appimage-installer appimage-installer.sha256 README.md
+          cp appimage-installer.sha256 "appimage-installer-${ARCH}.sha256"
           sha256sum "$ARCHIVE" > "${ARCHIVE}.sha256"
           cat "${ARCHIVE}.sha256"
 
@@ -117,6 +119,7 @@ jobs:
           path: |
             AppImage_Installer-*.tar.gz
             AppImage_Installer-*.tar.gz.sha256
+            appimage-installer-*.sha256
 
   publish:
     needs: [prepare, build]
@@ -144,12 +147,22 @@ jobs:
 
       - name: Build release notes
         run: |
-          VERSION="${{ needs.prepare.outputs.version }}"
+          FIRST=true
           {
-            for f in $(ls AppImage_Installer-*.tar.gz | sort); do
+            for ARCH in x86_64 aarch64; do
+              SHA_FILE="appimage-installer-${ARCH}.sha256"
+              [[ -f "$SHA_FILE" ]] || continue
+              if [[ "$FIRST" != "true" ]]; then
+                echo ""
+                echo "---"
+                echo ""
+              fi
+              FIRST=false
+              echo "## ${ARCH}"
               echo ""
-              echo "SHA256 for $f"
-              cat "${f}.sha256"
+              echo '```'
+              cat "$SHA_FILE"
+              echo '```'
             done
           } > release_notes.md
           cat release_notes.md
