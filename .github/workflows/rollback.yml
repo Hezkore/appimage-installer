@@ -1,0 +1,72 @@
+name: Rollback release
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  rollback:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Resolve versions
+        id: versions
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          LATEST_TAG=$(gh release list --exclude-pre-releases --limit 1 --json tagName --jq '.[0].tagName')
+          if [ -z "$LATEST_TAG" ]; then
+            echo "No releases found, nothing to roll back"
+            exit 1
+          fi
+          if ! [[ "$LATEST_TAG" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Latest tag is not valid semver: $LATEST_TAG"
+            exit 1
+          fi
+          echo "latest_tag=$LATEST_TAG" >> "$GITHUB_OUTPUT"
+
+          PREV_TAG=$(gh release list --exclude-pre-releases --limit 2 --json tagName --jq '.[1].tagName // ""')
+          if [ -z "$PREV_TAG" ]; then
+            PREV_VER="0.0.0"
+          else
+            PREV_VER="${PREV_TAG#v}"
+          fi
+          if ! [[ "$PREV_VER" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Previous version is not valid semver: $PREV_VER"
+            exit 1
+          fi
+          echo "prev_ver=$PREV_VER" >> "$GITHUB_OUTPUT"
+
+      - name: Revert version in source
+        run: |
+          PREV="${{ steps.versions.outputs.prev_ver }}"
+          sed -i "s/enum string INSTALLER_VERSION = \".*\";/enum string INSTALLER_VERSION = \"$PREV\";/" source/constants.d
+          grep -q "INSTALLER_VERSION = \"$PREV\"" source/constants.d \
+            || { echo "Version revert failed"; exit 1; }
+
+      - name: Delete latest release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          LATEST_TAG="${{ steps.versions.outputs.latest_tag }}"
+          gh release delete "$LATEST_TAG" --yes
+          git push --delete origin "$LATEST_TAG" 2>/dev/null || true
+
+      - name: Push version revert
+        run: |
+          PREV="${{ steps.versions.outputs.prev_ver }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add source/constants.d
+          git commit -m "Revert version to $PREV"
+          git pull --rebase origin main
+          git push origin main
