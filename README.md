@@ -4,6 +4,8 @@ Extremely fast and lightweight.
 Simply double-click an AppImage to install it, and your new application appears in your launcher.\
 Right-click any installed application to instantly update or uninstall it.
 
+No fuss, no hassle, just double-click and go.
+
 ## Why
 
 AppImages come as a single file with no installer.\
