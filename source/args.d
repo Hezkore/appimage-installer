@@ -39,10 +39,6 @@ struct AppArgs {
 
 // Turns a .desktop filename, full directory path, or bare sanitized name into just the sanitized name
 private string resolveSanitizedName(string target) {
-	import std.path : isAbsolute;
-
-	if (isAbsolute(target))
-		return baseName(target);
 	if (!target.endsWith(DESKTOP_SUFFIX))
 		return baseName(target);
 	string base = baseName(stripExtension(target));
