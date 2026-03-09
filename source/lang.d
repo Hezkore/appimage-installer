@@ -1,5 +1,6 @@
 // String table with runtime language switching
 // All languages are embedded at compile time to avoid runtime file path issues
+//
 module lang;
 
 import std.string : strip, indexOf, splitLines, replace;

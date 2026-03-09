@@ -6,6 +6,7 @@ set -euo pipefail
 
 declare -r EXIT_SUCCESS=0
 declare -r EXIT_MISSING_DEPENDENCY=1
+declare -r EXIT_LAUNCH_FAILED=2
 
 declare -a BUILD_ARGS=()
 declare -a RUN_ARGS=()
@@ -43,3 +44,4 @@ if [[ "${BUILD_ONLY}" == "true" ]]; then
 fi
 
 exec ./appimage-installer "${RUN_ARGS[@]}"
+exit ${EXIT_LAUNCH_FAILED}

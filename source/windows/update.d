@@ -2,8 +2,9 @@ module windows.update;
 
 import std.stdio : writeln;
 import std.conv : to;
-import std.string : startsWith;
+import std.string : startsWith, toStringz;
 import std.array : split;
+import std.typecons : Yes;
 import core.atomic : atomicLoad;
 import core.time : dur, MonoTime;
 import core.thread : Thread;
@@ -11,8 +12,12 @@ import core.thread : Thread;
 import glib.global : timeoutAdd;
 import glib.types : PRIORITY_DEFAULT;
 import glib.error : ErrorWrap;
+import gio.async_result : AsyncResult;
+import gobject.object : ObjectWrap;
+import gtk.alert_dialog : AlertDialog;
 import gtk.box : Box;
 import gtk.button : Button;
+import gtk.c.functions : gtk_alert_dialog_new;
 import gtk.image : Image;
 import gtk.label : Label;
 import gtk.progress_bar : ProgressBar;
@@ -21,6 +26,7 @@ import gtk.spinner : Spinner;
 import gtk.stack : Stack;
 import gtk.types : Align, Justification, Orientation, Overflow, RevealerTransitionType;
 import gtk.types : SelectionMode, StackTransitionType;
+import gtk.window : Window;
 
 import application : App;
 import windows.base : AppWindow, makeSlideDownRevealer, makeBackButton, revealAfterDelay;
@@ -38,13 +44,6 @@ import update.common : readManifestFields, retryInstallAfterSig,
 	parseUpdateMethodKind, UpdateMethodKind;
 import types : InstallMethod;
 import appimage.manifest : Manifest;
-import gtk.c.functions : gtk_alert_dialog_new;
-import gtk.alert_dialog : AlertDialog;
-import gtk.window : Window;
-import gobject.object : ObjectWrap;
-import gio.async_result : AsyncResult;
-import std.typecons : Yes;
-import std.string : toStringz;
 import lang : L;
 
 // Stagger delays so widgets appear in sequence rather than all at once
@@ -450,11 +449,11 @@ private void buildUpdateFlow(
 			dlg.setDefaultButton(1);
 			dlg.setCancelButton(1);
 			dlg.setModal(true);
-			dlg.choose(win, null, (ObjectWrap src, AsyncResult res) {
+			dlg.choose(win, null, (ObjectWrap src, AsyncResult asyncResult) {
 				if (isCancelled())
 					return;
 				try {
-					int choice = dlg.chooseFinish(res);
+					int choice = dlg.chooseFinish(asyncResult);
 					if (choice == 0) {
 						setUpdatingState();
 						progressRevealer.setRevealChild(true);

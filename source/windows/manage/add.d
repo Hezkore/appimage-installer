@@ -619,7 +619,7 @@ private Box buildInfoContent(
 			return;
 		}
 
-		// GitHub URL: let the user choose a release type before fetching
+		// GitHub URL so let the user choose a release type before fetching
 		auto makeReleaseCard = (string iconName, string title,
 			string subtitle) {
 			auto cardIcon = Image.newFromIconName(iconName);

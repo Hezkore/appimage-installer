@@ -163,7 +163,7 @@ package ubyte[16] computeMd4(const(ubyte)[] input) {
     return out_;
 }
 
-// RFC 1320 test vectors - catches byte-order regressions in the MD4 round constants
+// RFC 1320 test vectors, catching byte-order regressions around the MD4 round constants
 unittest {
     assert(computeMd4(cast(const(ubyte)[]) "") ==
             cast(ubyte[16])[

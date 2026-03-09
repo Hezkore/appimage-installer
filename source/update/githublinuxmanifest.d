@@ -13,7 +13,8 @@ import std.stdio : writeln;
 import std.string : indexOf, split, splitLines, startsWith, strip;
 
 import appimage.manifest : Manifest;
-import constants : APPLICATIONS_SUBDIR, INSTALLER_NAME, TAG_LATEST, UPDATE_SUBDIR;
+import constants : APPLICATIONS_SUBDIR, INSTALLER_NAME, TAG_LATEST, UPDATE_SUBDIR,
+	HTTP_SUCCESS_MIN, HTTP_SUCCESS_MAX;
 import types : InstallMethod;
 import update.common : downloadFile, finishInstall, MAX_HTTP_REDIRECTS,
 	readManifestFields;
@@ -109,7 +110,7 @@ private bool fetchLatestLinuxManifestBody(
 			~ ": " ~ curlException.msg;
 		return false;
 	}
-	if (statusCode < 200 || statusCode >= 300) {
+	if (statusCode < HTTP_SUCCESS_MIN || statusCode >= HTTP_SUCCESS_MAX) {
 		error = "HTTP " ~ statusCode.to!string ~ " fetching "
 			~ LINUX_MANIFEST_ASSET_NAME;
 		return false;
@@ -118,7 +119,7 @@ private bool fetchLatestLinuxManifestBody(
 }
 
 // Queries the latest GitHub release of ownerName/repositoryName for a latest-linux.yml asset
-// Sets hasLinuxManifest to true when found; returns false and sets error on network failure
+// Sets hasLinuxManifest to true if found, or returns false and sets error on network failure
 public bool findLinuxManifestAsset(
 	string ownerName,
 	string repositoryName,

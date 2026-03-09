@@ -2,13 +2,11 @@ module windows.uninstall;
 
 import core.atomic : atomicLoad, atomicStore;
 import std.file : exists, isDir, isSymlink, remove, rmdirRecurse, FileException;
-import std.string : toStringz;
 import std.path : buildPath;
 import std.process : spawnProcess, wait, ProcessException;
 import std.stdio : writeln;
-
-import appimage.icon : findInstalledIconPaths;
-import apputils : xdgDataHome;
+import std.string : toStringz;
+import std.typecons : Yes;
 
 import gio.async_result : AsyncResult;
 import glib.global : timeoutAdd;
@@ -24,9 +22,10 @@ import gtk.progress_bar : ProgressBar;
 import gtk.revealer : Revealer;
 import gtk.stack : Stack;
 import gtk.types : Align, Justification, Orientation, RevealerTransitionType, StackTransitionType;
-import std.typecons : Yes;
 
 import application : App;
+import appimage.icon : findInstalledIconPaths;
+import apputils : xdgDataHome;
 import constants : DESKTOP_SUFFIX;
 import windows.base : AppWindow, makeSlideDownRevealer;
 import windows.base : ACTION_BTN_WIDTH, ACTION_BTN_HEIGHT, ANIM_DURATION_MS;

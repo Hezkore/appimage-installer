@@ -17,7 +17,8 @@ import appimage.install : writeDesktopFile;
 import appimage.manifest : Manifest;
 import appimage.signature : SignatureStatus, SignatureResult, checkSignature;
 import types : InstallMethod;
-import constants : APPIMAGE_EXEC_MODE, APPLICATIONS_SUBDIR, DESKTOP_SUFFIX;
+import constants : APPIMAGE_EXEC_MODE, APPLICATIONS_SUBDIR, DESKTOP_SUFFIX,
+	HTTP_SUCCESS_MIN, HTTP_SUCCESS_MAX;
 
 // Identifies which update method a raw updateInfo string encodes
 public enum UpdateMethodKind {
@@ -100,7 +101,7 @@ public bool downloadFile(
 		return false;
 	}
 	immutable uint statusCode = http.statusLine.code;
-	if (statusCode < 200 || statusCode >= 300) {
+	if (statusCode < HTTP_SUCCESS_MIN || statusCode >= HTTP_SUCCESS_MAX) {
 		errorMessage = "HTTP " ~ statusCode.to!string;
 		return false;
 	}
@@ -179,8 +180,8 @@ public bool readManifestFields(
 	return true;
 }
 
-// Final install step shared by all update methods, handles AppImage and Extracted modes.
-// Pass skipSigCheck when the user has already been warned about a bad or missing signature.
+// Final install step shared by all update methods, handles AppImage and Extracted modes
+// Pass skipSigCheck when the user has already been warned about a bad or missing signature
 public bool finishInstall(
 	string tempPath,
 	string appDirectory,
@@ -204,7 +205,7 @@ public bool finishInstall(
 		if (elfInfo.sigSectionOffset != 0) {
 			auto sigResult = checkSignature(tempPath, elfInfo.sigSectionOffset, elfInfo
 					.sigSectionSize);
-			// Only block on a confirmed bad signature; Unverifiable (key not in keyring) passes through
+			// Only block on a confirmed bad signature, unverifiable keys pass through
 			if (sigResult.status == SignatureStatus.Invalid) {
 				errorMessage = "sig:invalid:" ~ tempPath;
 				return false;
@@ -360,7 +361,7 @@ public bool finishInstall(
 	return true;
 }
 
-// Calls finishInstall with the signature check bypassed after the user has accepted the risk.
+// Calls finishInstall with the signature check bypassed after the user has accepted the risk
 public bool retryInstallAfterSig(
 	string tempPath,
 	string appDirectory,

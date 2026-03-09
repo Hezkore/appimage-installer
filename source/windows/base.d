@@ -37,8 +37,8 @@ package(windows) enum int CONTENT_REVEAL_DELAY_MS = 250;
 package(windows) enum int ACTION_REVEAL_DELAY_MS = 500;
 package(windows) enum int CARD_STAGGER_MS = 100;
 
-// Creates a language selector in the header bar that rebuilds the window on change.
-// Each run gets its own stack frame so each closure captures a unique language code.
+// Creates a language selector in the header bar that rebuilds the window on change
+// Each run gets its own stack frame so each closure captures a unique language code
 private void connectLangButton(Button btn, string code, Popover popover, AppWindow win) {
 	btn.connectClicked(() {
 		import apputils : writeConfigLang;
@@ -167,7 +167,7 @@ abstract class AppWindow : ApplicationWindow {
 	// Set to true on window close so background downloads abort via shouldCancel delegates
 	package(windows) shared bool workCancelled;
 
-	// Runs the work function on a background thread and reports the result back to GTK.
+	// Runs the work function on a background thread and reports the result back to GTK
 	void doThreadedWork(void delegate() workDelegate, void delegate() completionDelegate) {
 		atomicStore(this.workCancelled, false);
 		this.setCursorFromName("wait");
@@ -199,7 +199,7 @@ abstract class AppWindow : ApplicationWindow {
 				if (message.success) {
 					completionDelegate();
 				} else {
-					// Closing here avoids a stuck spinner when the worker never finished cleanly.
+					// Closing here avoids a stuck spinner when the worker never finished cleanly
 					writeln("Worker failed, closing window.");
 					this.close();
 				}

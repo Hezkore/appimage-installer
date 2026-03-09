@@ -926,11 +926,11 @@ class ManageWindow : AppWindow {
 		this.addController(this.activeDropTarget);
 		this.activeDropTarget.connectDrop(
 			(Value dropValue, double x, double y) {
-			auto obj = dropValue.getObject();
-			if (obj is null)
+			auto droppedObject = dropValue.getObject();
+			if (droppedObject is null)
 				return false;
 			auto rawPath = g_file_get_path(
-				cast(GFile*) obj._cPtr(No.Dup));
+				cast(GFile*) droppedObject._cPtr(No.Dup));
 			if (rawPath is null)
 				return false;
 			string path = fromStringz(rawPath).idup;

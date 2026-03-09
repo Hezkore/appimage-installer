@@ -114,7 +114,7 @@ package void showOrphanBanner(ManageWindow win, string appName) {
 	win.bannerRevealer.setRevealChild(true);
 }
 
-// Handles an app directory disappearing - marks it orphan and updates the row
+// When the app directory disappears, marks the entry as orphan and refreshes the row
 private void handleAppGone(ManageWindow win, size_t index) {
 	auto ref entry = win.installedApps[index];
 	if (entry.isOrphan)
@@ -126,8 +126,8 @@ private void handleAppGone(ManageWindow win, size_t index) {
 		silentlyHideRow(win, index);
 }
 
-// Watches the appimages and app directories for changes so removed rows hide immediately.
-// Uses WatchMoves so Thunar trash fires MovedOut without GLib pairing source and destination.
+// Watches the appimages and app directories for changes so removed rows hide immediately
+// Uses WatchMoves so Thunar trash fires MovedOut without GLib pairing source and destination
 package void startWatcher(ManageWindow win) {
 	if (win.watcherRunning)
 		return;

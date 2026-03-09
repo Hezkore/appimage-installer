@@ -210,7 +210,7 @@ public bool checkPlingForUpdate(
 		return false;
 	string storedPattern = parsePlingPattern(updateInfo);
 	if (storedPattern.length == 0) {
-		// No baseline yet - compare against the file that was actually installed
+		// Without a baseline yet, compare against the file that was actually installed
 		// so we don't falsely mark a newer version as already installed
 		auto installedAppManifest = Manifest.loadFromAppDir(appDirectory);
 		string installedName =
@@ -316,7 +316,7 @@ public bool performPlingUpdate(
 			false, shouldCancel))
 		return false;
 
-	// Record the new filename and version so the next check shows up to date.
+	// Record the new filename and version so the next check shows up to date
 	// Pling filename is the canonical version source for apps without X-AppImage-Version=
 	auto installedAppManifest = Manifest.loadFromAppDir(appDirectory);
 	if (installedAppManifest !is null) {

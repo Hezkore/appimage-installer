@@ -20,6 +20,15 @@ enum string DESKTOP_SUFFIX = ".desktop";
 enum int CSS_PRIORITY_APP = 600; // GTK_STYLE_PROVIDER_PRIORITY_APPLICATION
 enum int CSS_PRIORITY_USER = 700; // GTK_STYLE_PROVIDER_PRIORITY_USER
 
+// HTTP status code ranges and specific codes used across network requests
+enum int HTTP_OK = 200;
+enum int HTTP_PARTIAL_CONTENT = 206;
+enum int HTTP_SUCCESS_MIN = 200;
+enum int HTTP_SUCCESS_MAX = 300;
+enum int HTTP_BAD_REQUEST = 400;
+enum int HTTP_FORBIDDEN = 403;
+enum int HTTP_TOO_MANY_REQUESTS = 429;
+
 // Unix permission mode set on every installed AppImage binary
 enum uint APPIMAGE_EXEC_MODE = octal!755;
 

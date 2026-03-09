@@ -85,8 +85,8 @@ private string describeUpdateMethod(string updateInfo) {
 	return L("options.update.none");
 }
 
-// Patches a key= in [Desktop Entry], removing locale variants and preserving line endings.
-// Inserts the key after [Desktop Entry] if it was not there before.
+// Patches a key= in [Desktop Entry], removing locale variants and preserving line endings
+// Inserts the key after [Desktop Entry] if it was not there before
 private void patchDesktopField(string path, string key, string value) {
 	if (!exists(path))
 		return;
@@ -735,8 +735,8 @@ Box buildOptionsBox(
 		} else if (plingList.getVisible()) {
 			string newPlingProductId = plingProductIdEntry.getText().strip();
 			if (newPlingProductId != currentPlingProductId) {
-				// Product ID changed - drop the old baseline; the next
-				// update check will compare against the installed file instead
+				// Product ID changed so drop the old baseline
+				// The next update check will compare against the installed file instead
 				currentUpdateInfo = "pling-v1-zsync|" ~ newPlingProductId;
 				installedAppManifest.updateInfo = currentUpdateInfo;
 				currentPlingProductId = newPlingProductId;

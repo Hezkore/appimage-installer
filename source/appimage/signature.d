@@ -12,7 +12,7 @@ import std.digest : digest;
 
 // Result of a signature check on a downloaded AppImage
 public enum SignatureStatus {
-	// No .sha256_sig section found - file is unsigned
+	// No .sha256_sig section found so the file is unsigned
 	None,
 	// Signature present and gpg confirmed it as valid
 	Verified,
@@ -30,13 +30,13 @@ public struct SignatureResult {
 	string keyId;
 }
 
-// Checks the GPG signature in the .sha256_sig section at sigOffset for sigSize bytes.
-// Returns None when sigOffset is 0 meaning no signature section was found.
+// Checks the GPG signature in the .sha256_sig section at sigOffset for sigSize bytes
+// Returns None when sigOffset is 0 meaning no signature section was found
 public SignatureResult checkSignature(string filePath, ulong sigOffset, ulong sigSize) {
 	if (sigOffset == 0 || sigSize == 0)
 		return SignatureResult(SignatureStatus.None, "");
 
-	// 1. Extract signature bytes from file
+	// First, extract signature bytes from the file
 	ubyte[] sigBytes;
 	try {
 		auto f = File(filePath, "rb");
@@ -54,15 +54,15 @@ public SignatureResult checkSignature(string filePath, ulong sigOffset, ulong si
 		return SignatureResult(SignatureStatus.Unverifiable, "");
 	}
 
-	// If the section is present but contains no valid PGP data, treat as unsigned.
-	// Binary PGP packets have bit 7 set; armored PGP starts with "-----BEGIN PGP".
+	// If the section is present but contains no valid PGP data, treat as unsigned
+	// Binary PGP packets have bit 7 set and armored PGP starts with "-----BEGIN PGP"
 	bool isBinaryPgp = sigBytes.length >= 1 && (sigBytes[0] & 0x80) != 0;
 	bool isArmoredPgp = sigBytes.length >= 10
 		&& sigBytes[0 .. 10] == cast(ubyte[]) "-----BEGIN";
 	if (!isBinaryPgp && !isArmoredPgp)
 		return SignatureResult(SignatureStatus.None, "");
 
-	// 2. Compute SHA-256 of file[0..sigOffset]
+	// Then compute SHA-256 of the file up to sigOffset
 	ubyte[32] hashDigest;
 	try {
 		auto sha = SHA256();
@@ -87,7 +87,7 @@ public SignatureResult checkSignature(string filePath, ulong sigOffset, ulong si
 		return SignatureResult(SignatureStatus.Unverifiable, "");
 	}
 
-	// 3. Write both to temp files and run gpg --verify
+	// Now write both to temp files and run gpg --verify
 	import std.conv : to;
 	import core.sys.posix.unistd : getpid;
 	import constants : SIGNATURE_TEMP_FILE_PREFIX, TEMP_DIRECTORY_PATH;
@@ -139,8 +139,8 @@ public SignatureResult checkSignature(string filePath, ulong sigOffset, ulong si
 	}
 }
 
-// Extracts the signing key ID from gpg --status-fd output.
-// Looks for ERRSIG, GOODSIG, or BADSIG status lines that carry the key ID.
+// Extracts the signing key ID from gpg --status-fd output
+// Looks for ERRSIG, GOODSIG, or BADSIG status lines that carry the key ID
 private string parseGpgKeyId(string output) {
 	import std.string : indexOf;
 
@@ -165,8 +165,8 @@ private string parseGpgKeyId(string output) {
 	return "";
 }
 
-// Extracts the issuer key ID from a PGP binary signature packet.
-// Checks subpacket type 33 for modern gpg 2.2 and type 16 for older versions.
+// Extracts the issuer key ID from a PGP binary signature packet
+// Checks subpacket type 33 for modern gpg 2.2 and type 16 for older versions
 private string extractSigKeyId(const(ubyte)[] data) {
 	import std.format : format;
 
@@ -176,7 +176,7 @@ private string extractSigKeyId(const(ubyte)[] data) {
 	// Parse packet header to find where the body starts
 	size_t bodyOffset;
 	if (data[0] & 0x40) {
-		// New format (e.g. 0xC2 for signature): length starts at byte 1
+		// New format (e.g. 0xC2 for signature), length starts at byte 1
 		if (data.length < 2)
 			return "";
 		ubyte lengthByte = data[1];
@@ -189,7 +189,7 @@ private string extractSigKeyId(const(ubyte)[] data) {
 		else
 			return "";
 	} else {
-		// Old format: length type in bits 1-0 of tag byte
+		// Old format, length type in bits 1-0 of tag byte
 		ubyte lengthType = data[0] & 3;
 		if (lengthType == 0)
 			bodyOffset = 2;
@@ -209,7 +209,7 @@ private string extractSigKeyId(const(ubyte)[] data) {
 	if (body.length < 6 || body[0] != 4)
 		return "";
 
-	// Walk a subpacket region; return key ID hex on first match
+	// Walks a subpacket region and returns the key ID hex on first match
 	string scanForKeyId(const(ubyte)[] sp) {
 		import std.format : format;
 
@@ -235,12 +235,12 @@ private string extractSigKeyId(const(ubyte)[] data) {
 			ubyte subpacketType = sp[typeOffset];
 			size_t dataOffset = typeOffset + 1;
 			size_t dataLength = byteLength >= 1 ? byteLength - 1 : 0;
-			// Type 33: Issuer Fingerprint (modern gpg, hashed subpackets)
+			// Type 33 is Issuer Fingerprint (modern gpg, hashed subpackets)
 			if (subpacketType == 33
 				&& dataLength >= 1
 				&& dataOffset < sp.length) {
 				ubyte keyVersion = sp[dataOffset];
-				// v4 key: 1 version byte + 20 fingerprint bytes
+				// A v4 key has 1 version byte and 20 fingerprint bytes
 				if (keyVersion == 4
 					&& dataLength >= 21
 					&& dataOffset + 21 <= sp.length) {
@@ -249,7 +249,7 @@ private string extractSigKeyId(const(ubyte)[] data) {
 						keyIdBytes[0], keyIdBytes[1], keyIdBytes[2], keyIdBytes[3],
 						keyIdBytes[4], keyIdBytes[5], keyIdBytes[6], keyIdBytes[7]);
 				}
-				// v6 key: 1 version byte + 32 fingerprint bytes
+				// A v6 key has 1 version byte and 32 fingerprint bytes
 				if (keyVersion == 6
 					&& dataLength >= 33
 					&& dataOffset + 33 <= sp.length) {
@@ -259,7 +259,7 @@ private string extractSigKeyId(const(ubyte)[] data) {
 						keyIdBytes[4], keyIdBytes[5], keyIdBytes[6], keyIdBytes[7]);
 				}
 			}
-			// Type 16: Issuer Key ID (older gpg, unhashed subpackets)
+			// Type 16 is Issuer Key ID (older gpg, unhashed subpackets)
 			if (subpacketType == 16
 				&& dataLength >= 8
 				&& dataOffset + 8 <= sp.length) {

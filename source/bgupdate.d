@@ -47,8 +47,8 @@ private string buildPidFilePath() {
 	return buildPath(configDir(), BGUPDATE_PID_FILE_NAME);
 }
 
-// Uses O_CREAT|O_EXCL so at most one instance can proceed past this check.
-// Stale PID files are removed and retried so one bad run cannot block future runs.
+// Uses O_CREAT|O_EXCL so at most one instance can proceed past this check
+// Stale PID files are removed and retried so one bad run cannot block future runs
 private bool tryClaimPidFile(out int existingPid) {
 	import core.stdc.errno : errno, EEXIST;
 	import core.sys.posix.fcntl : open, O_CREAT, O_EXCL, O_WRONLY;
@@ -75,23 +75,23 @@ private bool tryClaimPidFile(out int existingPid) {
 			return true;
 		}
 
-		// File exists - check if it belongs to a live instance of this binary
+		// File exists so check if it belongs to a live instance of this binary
 		try {
 			existingPid = to!int(readText(path).strip());
 			try {
 				if (readLink(PROC_DIRECTORY ~ "/" ~ to!string(existingPid) ~ "/exe") == thisExePath())
 					return false; // genuine bgupdate instance holds the file
-				// PID belongs to a different binary - recycled, treat as stale
+				// PID belongs to a different binary so treat the file as stale
 			} catch (FileException) {
-				// Process exited between readText and readLink - treat as stale
+				// Process exited between readText and readLink so treat as stale
 			}
 		} catch (ConvException) {
-			// Corrupted file - fall through to stale cleanup
+			// Corrupted file so fall through to stale cleanup
 		} catch (FileException) {
 			continue; // file vanished between open and readText, retry
 		}
 
-		// Stale file - remove and let the loop retry O_CREAT|O_EXCL
+		// Stale file so remove it and let the loop retry O_CREAT|O_EXCL
 		try {
 			remove(path);
 		} catch (FileException) {
@@ -148,7 +148,7 @@ private void markUpdateAvailable(InstalledApp entry) {
 }
 
 // Spawns command in a transient systemd scope so the bgupdate cgroup cleanup does
-// not kill the child. Falls back to plain spawn if systemd-run is unavailable.
+// not kill the child, falls back to plain spawn if systemd-run is unavailable
 private void spawnInNewScope(string[] command) {
 	import std.process : ProcessException;
 

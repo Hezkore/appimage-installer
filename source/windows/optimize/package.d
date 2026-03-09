@@ -381,7 +381,7 @@ Box buildOptimizeBox(
 	stack.setVisibleChildName(appImageType == 1 ? "type1" : "choice");
 
 	// Slides to the result page and switches install mode without touching the
-	// metadata subdirectory. keepCopy only applies when switching to Extracted.
+	// metadata subdirectory, keepCopy only applies when switching to Extracted
 	void runOptimize(InstallMethod method, bool keepCopy) {
 		if (!resolvedSource.length) {
 			locButtonRevealer.setRevealChild(false);
@@ -484,7 +484,7 @@ Box buildOptimizeBox(
 						collectException(setAttributes(appRunPath, APPIMAGE_EXEC_MODE));
 
 				} else {
-					// AppImage is in the metadata dir; clear extracted files first
+					// AppImage is in the metadata dir so clear extracted files first
 					// then move it to the appDir root
 					clearAppDirExceptMeta(appDirectory);
 					atomicStore(workAppImage.installProgress, 0.5);

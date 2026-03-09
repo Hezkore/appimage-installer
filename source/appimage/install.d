@@ -37,8 +37,8 @@ private string installedDesktopPath(
 	return buildPath(appDirectory, APPLICATIONS_SUBDIR, sanitizedName ~ DESKTOP_SUFFIX);
 }
 
-// Rewrites Exec= lines to add or remove HOME and XDG_CONFIG_HOME portable env vars.
-// Matches the launch line for the app's current mode, AppRun for Extracted or .AppImage otherwise.
+// Rewrites Exec= lines to add or remove HOME and XDG_CONFIG_HOME portable env vars
+// Matches the launch line for the app's current mode, AppRun for Extracted or .AppImage otherwise
 public void reapplyPortableExec(
 	string desktopPath,
 	string appDirectory,
@@ -104,8 +104,8 @@ public void reapplyPortableExec(
 	}
 }
 
-// Rewrites Exec= and TryExec= lines when switching install modes.
-// Finds the old launcher path so the new path and env setup can be substituted.
+// Rewrites Exec= and TryExec= lines when switching install modes
+// Finds the old launcher path so the new path and env setup can be substituted
 public void rewriteDesktopForModeSwitch(
 	string desktopPath,
 	string appDirectory,
@@ -242,8 +242,8 @@ public string portableConfigDir(string appDirectory) {
 	return buildPath(appDirectory, APPLICATIONS_SUBDIR, "portable.config");
 }
 
-// Removes everything under appDir except the metadata subdirectory.
-// Called when switching modes so the manifest and portable directories are not touched.
+// Removes everything under appDir except the metadata subdirectory
+// Called when switching modes so the manifest and portable directories are not touched
 public void clearAppDirExceptMeta(string appDir) {
 	foreach (entry; dirEntries(appDir, SpanMode.shallow)) {
 		if (baseName(entry.name) == APPLICATIONS_SUBDIR)
@@ -311,7 +311,7 @@ public void writeDesktopFile(
 					envLine ~= " XDG_CONFIG_HOME=" ~ portableConfigPath;
 				outputLines ~= envLine ~ " " ~ appRunPath ~ trailingArgs;
 			} else {
-				// AppImage-mode: the ELF runtime mounts and sets APPDIR itself
+				// In AppImage mode the ELF runtime mounts and sets APPDIR itself
 				if (portableHomePath.length || portableConfigPath.length) {
 					string envLine = "Exec=env";
 					if (portableHomePath.length)

@@ -18,7 +18,8 @@ import std.string : startsWith, strip, splitLines, indexOf, lastIndexOf, split;
 import update.common : readManifestFields, finishInstall, MAX_HTTP_REDIRECTS;
 import update.zsync.md4 : computeMd4;
 import types : InstallMethod;
-import constants : APPLICATIONS_SUBDIR, UPDATE_SUBDIR;
+import constants : APPLICATIONS_SUBDIR, UPDATE_SUBDIR,
+	HTTP_OK, HTTP_SUCCESS_MIN, HTTP_SUCCESS_MAX, HTTP_PARTIAL_CONTENT;
 
 // Progress fractions marking each phase of the zsync update
 private enum Progress {
@@ -247,7 +248,7 @@ private bool fetchBytes(
 		return false;
 	}
 	immutable uint code = http.statusLine.code;
-	if (code < 200 || code >= 300) {
+	if (code < HTTP_SUCCESS_MIN || code >= HTTP_SUCCESS_MAX) {
 		error = "HTTP " ~ code.to!string;
 		return false;
 	}
@@ -527,8 +528,8 @@ private bool assembleFile(
 			return false;
 		}
 		immutable uint code = http.statusLine.code;
-		// 200 means the server returned the full file (no range support)
-		if (code != 200 && code != 206) {
+		// A 200 means the server returned the full file (no range support)
+		if (code != HTTP_OK && code != HTTP_PARTIAL_CONTENT) {
 			error = "HTTP " ~ code.to!string ~ " for range " ~ range.start.to!string;
 			return false;
 		}

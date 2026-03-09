@@ -134,8 +134,8 @@ package void delegate() makeToggleCallback(
 	};
 }
 
-// Binds the row toggle click, static so each rowIndex is captured by value not by closure reference.
-// The gesture covers the full row but clicks inside the open revealer at the bottom are ignored.
+// Binds the row toggle click, static so each rowIndex is captured by value not by closure reference
+// The gesture covers the full row but clicks inside the open revealer at the bottom are ignored
 package void bindToggleClick(
 	GestureClick click, size_t rowIndex, Revealer[] revealers,
 	CssProvider[] highlights,

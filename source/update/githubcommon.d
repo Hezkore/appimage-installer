@@ -1,16 +1,18 @@
 // Shared GitHub API release-fetch logic used by gh-releases-zsync and gh-releases
 module update.githubcommon;
 
-import apputils : readConfigGithubToken;
-import constants : INSTALLER_NAME, TAG_LATEST, TAG_LATEST_PRE, TAG_LATEST_ALL;
 import std.conv : to;
 import std.json : JSONException, JSONType, JSONValue, parseJSON;
 import std.net.curl : CurlException, HTTP;
 import std.stdio : writeln;
 
+import apputils : readConfigGithubToken;
+import constants : INSTALLER_NAME, TAG_LATEST, TAG_LATEST_PRE, TAG_LATEST_ALL,
+	HTTP_FORBIDDEN, HTTP_TOO_MANY_REQUESTS, HTTP_BAD_REQUEST;
+
 package enum string GITHUB_API_BASE = "https://api.github.com/repos/";
 
-// Fetches the GitHub release JSON for ownerName/repositoryName.
+// Fetches the GitHub release JSON for ownerName/repositoryName
 // Returns false and sets error on network or parse failure
 public bool fetchGitHubRelease(
 	string ownerName,
@@ -49,11 +51,11 @@ public bool fetchGitHubRelease(
 			error = "GitHub API request failed: " ~ curlException.msg;
 			return false;
 		}
-		if (statusCode == 403 || statusCode == 429) {
+		if (statusCode == HTTP_FORBIDDEN || statusCode == HTTP_TOO_MANY_REQUESTS) {
 			error = "GitHub API rate limited (HTTP " ~ statusCode.to!string ~ ")";
 			return false;
 		}
-		if (statusCode >= 400) {
+		if (statusCode >= HTTP_BAD_REQUEST) {
 			error = "GitHub API error HTTP " ~ statusCode.to!string;
 			return false;
 		}
@@ -110,11 +112,11 @@ public bool fetchGitHubRelease(
 		error = "GitHub API request failed: " ~ curlException.msg;
 		return false;
 	}
-	if (statusCode == 403 || statusCode == 429) {
+	if (statusCode == HTTP_FORBIDDEN || statusCode == HTTP_TOO_MANY_REQUESTS) {
 		error = "GitHub API rate limited (HTTP " ~ statusCode.to!string ~ ")";
 		return false;
 	}
-	if (statusCode >= 400) {
+	if (statusCode >= HTTP_BAD_REQUEST) {
 		error = "GitHub API error HTTP " ~ statusCode.to!string;
 		return false;
 	}

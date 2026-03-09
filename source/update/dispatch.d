@@ -11,7 +11,7 @@ import update.pling : performPlingUpdate;
 import windows.manage.scan : InstalledApp;
 
 // Runs the appropriate update for entry, reporting progress
-// Returns true on success; wasUpdated is false when already up to date
+// Returns true on success, with wasUpdated set to false when already up to date
 public bool applyUpdateWithProgress(
 	ref InstalledApp entry,
 	ref double progress,

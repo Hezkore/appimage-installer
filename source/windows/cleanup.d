@@ -1,14 +1,12 @@
 module windows.cleanup;
 
 import core.atomic : atomicLoad, atomicStore;
+import core.thread : Thread;
 import std.datetime.stopwatch : StopWatch, AutoStart;
 import std.file : exists, isDir, isSymlink, remove, rmdirRecurse, FileException;
 import std.path : buildPath;
 import std.stdio : writeln;
 import std.string : join;
-import appimage.icon : findInstalledIconPaths;
-import apputils : xdgDataHome, installBaseDir;
-import core.thread : Thread;
 
 import glib.global : idleAdd, timeoutAdd;
 import glib.types : PRIORITY_DEFAULT;
@@ -21,10 +19,12 @@ import gtk.spinner : Spinner;
 import gtk.types : Align, Justification, Orientation, RevealerTransitionType, StackTransitionType;
 import gtk.stack : Stack;
 
+import appimage.icon : findInstalledIconPaths;
+import apputils : xdgDataHome, installBaseDir;
+import constants : DESKTOP_PREFIX;
 import windows.base : makeSlideDownRevealer, revealAfterDelay, revealWithStagger;
 import windows.base : ACTION_BTN_WIDTH, ACTION_BTN_HEIGHT, CONTENT_REVEAL_DELAY_MS;
 import windows.base : ACTION_REVEAL_DELAY_MS, CARD_STAGGER_MS;
-import constants : DESKTOP_PREFIX;
 import lang : L;
 
 // Revealer and stack transition duration
@@ -282,7 +282,7 @@ package Box buildCleanupBox(
 	section.append(errorRevealer);
 
 	// Header reveals right away, cards follow after a short pause, and the button waits
-	// until the scan has resolved so the last action appears last.
+	// until the scan has resolved so the last action appears last
 
 	CleanupTargets* results = new CleanupTargets;
 	shared bool* discoverDone = new shared bool(false);

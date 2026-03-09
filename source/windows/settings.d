@@ -2,14 +2,13 @@
 module windows.settings;
 
 import core.thread : Thread;
+import std.conv : to, ConvException;
 import std.file : exists, isDir, mkdirRecurse, isSymlink, remove,
 	rename, copy, rmdirRecurse, dirEntries, SpanMode, FileException;
 import std.path : buildPath, baseName;
-import std.stdio : writeln;
-import std.conv : to, ConvException;
 import std.process : execute, ProcessException;
+import std.stdio : writeln;
 import std.string : replace, toStringz;
-
 import std.typecons : Yes;
 
 import gtk.switch_ : Switch;
@@ -97,7 +96,7 @@ private string migrateAppsTo(string oldBase, string newBase) {
 		try {
 			rename(oldDir, newDir);
 		} catch (FileException) {
-			// Cross-device: fall back to copy then delete
+			// Cross-device move so fall back to copy then delete
 			try {
 				copyDirRecurse(oldDir, newDir);
 				rmdirRecurse(oldDir);
@@ -149,8 +148,8 @@ private string migrateAppsTo(string oldBase, string newBase) {
 	return "";
 }
 
-// Builds the settings sub-page and wires the back button into win.headerBar.
-// onSaved triggers a full reload, onBack fires when leaving with no pending changes.
+// Builds the settings sub-page and wires the back button into win.headerBar
+// onSaved triggers a full reload, onBack fires when leaving with no pending changes
 public Box buildSettingsBox(
 	ManageWindow win,
 	void delegate() onSaved,
@@ -607,7 +606,7 @@ public Box buildSettingsBox(
 			return;
 		}
 
-		// Directory changed - migrate all app directories to the new location
+		// Directory changed so migrate all app directories to the new location
 		saveButton.setSensitive(false);
 		backButton.setSensitive(false);
 		browseButton.setSensitive(false);

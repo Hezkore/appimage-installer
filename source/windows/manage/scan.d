@@ -73,7 +73,7 @@ package string cleanOrphanName(string raw) {
 }
 
 // Reads one key= line from a .desktop file with locale fallback
-// Delegates to readDesktopFieldLocalized passing the active language code
+// Calls readDesktopFieldLocalized with the active language code
 package string tryReadDesktopFieldLocalized(string path, string key) {
 	return readDesktopFieldLocalized(path, key, activeLangCode());
 }

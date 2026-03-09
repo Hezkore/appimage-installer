@@ -355,9 +355,9 @@ class InstallWindow : AppWindow {
 				auto keyCopyGesture = new GestureClick;
 				keyCopyGesture.connectReleased(
 					(int nPress, double x, double y, GestureClick _) {
-					auto cb = this.getDisplay().getClipboard();
+					auto clipboard = this.getDisplay().getClipboard();
 					gdk_clipboard_set_text(
-						cast(GdkClipboard*) cb._cPtr(No.Dup), keyId.toStringz());
+						cast(GdkClipboard*) clipboard._cPtr(No.Dup), keyId.toStringz());
 				});
 				keyRowContent.addController(keyCopyGesture);
 			}

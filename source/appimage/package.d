@@ -225,7 +225,7 @@ class AppImage {
 			return false;
 		}
 
-		// Bytes 8–9 hold the "AI" magic present in all AppImages
+		// Bytes 8 and 9 hold the "AI" magic present in all AppImages
 		if (header[8] != 0x41 || header[9] != 0x49 || header[10] == 0) {
 			writeln("APPIMAGE magic not found in: ", this.filePath);
 			return false;
