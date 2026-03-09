@@ -237,7 +237,7 @@ public bool writeSystemdServiceFile(string destPath, int checkIntervalHours, out
 	return true;
 }
 
-// Writes a systemd user timer unit that triggers the update service hourly
+// Writes a systemd user timer unit that triggers the update service every 4 hours
 public bool writeSystemdTimerFile(string destPath, out string error) {
 	import std.file : write, FileException, mkdirRecurse;
 	import std.path : dirName;
@@ -246,11 +246,11 @@ public bool writeSystemdTimerFile(string destPath, out string error) {
 		mkdirRecurse(dirName(destPath));
 		write(destPath,
 			"[Unit]\n"
-				~ "Description=Run AppImage Installer background update check hourly\n"
+				~ "Description=Run AppImage Installer background update check\n"
 				~ "\n"
 				~ "[Timer]\n"
 				~ "OnBootSec=5min\n"
-				~ "OnUnitActiveSec=1h\n"
+				~ "OnUnitActiveSec=4h\n"
 				~ "Persistent=true\n"
 				~ "\n"
 				~ "[Install]\n"

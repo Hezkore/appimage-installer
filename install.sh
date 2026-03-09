@@ -83,8 +83,8 @@ fi
 echo ""
 
 if command -v systemctl &>/dev/null && systemctl --user is-system-running &>/dev/null 2>&1 || true; then
-	if ask "Install a background service to check for app updates hourly?"; then
-		echo "  -> A systemd user timer will run ${BINARY} --background-update every hour"
+	if ask "Install a background service to check for application updates?"; then
+		echo "  -> A systemd user timer will run ${BINARY} --background-update on a timer"
 		mkdir -p "${SYSTEMD_DIR}"
 		"${INSTALL_DIR}/${BINARY}" --systemd-service "${SYSTEMD_DIR} --check-interval 24"
 		"${INSTALL_DIR}/${BINARY}" --systemd-timer "${SYSTEMD_DIR}"
