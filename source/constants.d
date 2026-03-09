@@ -3,7 +3,7 @@ module constants;
 import std.conv : octal;
 
 // Version string written into each manifest at install time
-enum string INSTALLER_VERSION = "0.1.6";
+enum string INSTALLER_VERSION = "0.1.7";
 
 // Binary name used in User-Agent headers and to register the desktop installer action
 enum string INSTALLER_NAME = "appimage-installer";
