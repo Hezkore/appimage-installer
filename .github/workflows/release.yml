@@ -146,7 +146,7 @@ jobs:
         run: |
           VERSION="${{ needs.prepare.outputs.version }}"
           {
-            echo "Release $VERSION"
+            echo "AppImage Installer version $VERSION"
             for f in $(ls AppImage_Installer-*.tar.gz | sort); do
               echo ""
               echo "SHA256 for $f"
@@ -163,7 +163,7 @@ jobs:
           gh release create "$VERSION" \
             AppImage_Installer-*.tar.gz \
             AppImage_Installer-*.tar.gz.sha256 \
-            --title "$VERSION" \
+            --title "AppImage Installer version $VERSION" \
             --notes-file release_notes.md
 
       - name: Push version bump
