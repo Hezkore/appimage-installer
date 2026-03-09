@@ -151,8 +151,6 @@ jobs:
           {
             for ARCH in x86_64 aarch64; do
               BIN_SHA_FILE="appimage-installer-${ARCH}.sha256"
-              ARCHIVE="AppImage_Installer-${ARCH}.tar.gz"
-              ARC_SHA_FILE="${ARCHIVE}.sha256"
               [[ -f "$BIN_SHA_FILE" ]] || continue
               if [[ "$FIRST" != "true" ]]; then
                 echo ""
@@ -160,6 +158,8 @@ jobs:
                 echo ""
               fi
               FIRST=false
+              ARC_SHA_FILE=$(ls AppImage_Installer-*-${ARCH}.tar.gz.sha256 2>/dev/null | head -1)
+              ARCHIVE=$(basename "${ARC_SHA_FILE%.sha256}" 2>/dev/null || true)
               BIN_SHA=$(awk '{print $1}' "$BIN_SHA_FILE")
               ARC_SHA=$(awk '{print $1}' "$ARC_SHA_FILE")
               echo "## ${ARCH}"
