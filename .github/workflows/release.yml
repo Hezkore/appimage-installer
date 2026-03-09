@@ -31,7 +31,7 @@ jobs:
       version: ${{ steps.version.outputs.value }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Check inputs
         if: inputs.major == 0 && inputs.minor == 0 && inputs.patch == 0
@@ -75,7 +75,7 @@ jobs:
     runs-on: ${{ matrix.runs-on }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Patch version
         run: |
@@ -134,7 +134,7 @@ jobs:
       contents: write
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
