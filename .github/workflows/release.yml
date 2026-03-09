@@ -33,24 +33,29 @@ jobs:
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
-      - name: Check inputs
+      - name: Reject no-op release
         if: inputs.major == 0 && inputs.minor == 0 && inputs.patch == 0
         run: |
           set -euo pipefail
           echo "All version bumps are 0, nothing to release"
           exit 1
 
-      - name: Set version
+      - name: Compute version
         id: version
+        env:
+          INPUT_MAJOR: ${{ inputs.major }}
+          INPUT_MINOR: ${{ inputs.minor }}
+          INPUT_PATCH: ${{ inputs.patch }}
+        shell: bash
         run: |
           set -euo pipefail
           CURRENT=$(grep -oP '(?<=INSTALLER_VERSION = ")[^"]+' source/constants.d)
           IFS='.' read -r CUR_MAJOR CUR_MINOR CUR_PATCH <<< "$CURRENT"
-          NEW_MAJOR=$(( CUR_MAJOR + ${{ inputs.major }} ))
-          NEW_MINOR=$(( CUR_MINOR + ${{ inputs.minor }} ))
-          NEW_PATCH=$(( CUR_PATCH + ${{ inputs.patch }} ))
+          NEW_MAJOR=$(( CUR_MAJOR + INPUT_MAJOR ))
+          NEW_MINOR=$(( CUR_MINOR + INPUT_MINOR ))
+          NEW_PATCH=$(( CUR_PATCH + INPUT_PATCH ))
           VERSION="$NEW_MAJOR.$NEW_MINOR.$NEW_PATCH"
-          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+          if ! [[  "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             echo "Computed version is not valid semver: $VERSION"
             exit 1
           fi
@@ -78,6 +83,7 @@ jobs:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Patch version
+        shell: bash
         run: |
           set -euo pipefail
           VERSION="${{ needs.prepare.outputs.version }}"
@@ -86,6 +92,7 @@ jobs:
             || { echo "Version patch failed"; exit 1; }
 
       - name: Install GTK4
+        shell: bash
         run: |
           set -euo pipefail
           sudo apt-get update -y
@@ -106,6 +113,7 @@ jobs:
         run: ./appimage-installer --health
 
       - name: Package
+        shell: bash
         run: |
           set -euo pipefail
           VERSION="${{ needs.prepare.outputs.version }}"
@@ -144,6 +152,7 @@ jobs:
           merge-multiple: true
 
       - name: Verify checksums
+        shell: bash
         run: |
           set -euo pipefail
           for f in AppImage_Installer-*.tar.gz; do
@@ -151,7 +160,8 @@ jobs:
             sha256sum --check "${f}.sha256"
           done
 
-      - name: Build release notes
+      - name: Write release notes
+        shell: bash
         run: |
           set -euo pipefail
           FIRST=true
@@ -159,24 +169,20 @@ jobs:
             for ARCH in x86_64 aarch64; do
               BIN_SHA_FILE="appimage-installer-${ARCH}.sha256"
               [[ -f "$BIN_SHA_FILE" ]] || continue
-              if [[ "$FIRST" != "true" ]]; then
-                echo ""
-                echo "---"
-                echo ""
-              fi
-              FIRST=false
               ARC_SHA_FILES=(AppImage_Installer-*-${ARCH}.tar.gz.sha256)
               ARC_SHA_FILE="${ARC_SHA_FILES[0]}"
               ARCHIVE=$(basename "${ARC_SHA_FILE%.sha256}")
-              BIN_SHA=$(awk '{print $1}' "$BIN_SHA_FILE")
-              ARC_SHA=$(awk '{print $1}' "$ARC_SHA_FILE")
-              echo "## ${ARCH}"
-              echo ""
-              echo "**appimage-installer** Binary SHA256:"
-              echo "\`${BIN_SHA}\`"
-              echo ""
-              echo "**${ARCHIVE}** SHA256:"
-              echo "\`${ARC_SHA}\`"
+              BIN_SHA=$(cut -d' ' -f1 "$BIN_SHA_FILE")
+              ARC_SHA=$(cut -d' ' -f1 "$ARC_SHA_FILE")
+              if [[ "$FIRST" != "true" ]]; then
+                printf '\n---\n\n'
+              fi
+              FIRST=false
+              printf '## %s\n\n' "$ARCH"
+              printf '**SHA256** for `appimage-installer`\n```\n%s  appimage-installer\n```\n' \
+                "$BIN_SHA"
+              printf '\n**SHA256** for `%s`\n```\n%s  %s\n```\n' \
+                "$ARCHIVE" "$ARC_SHA" "$ARCHIVE"
             done
           } > release_notes.md
           cat release_notes.md
@@ -184,6 +190,7 @@ jobs:
       - name: Create release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
         run: |
           set -euo pipefail
           VERSION="${{ needs.prepare.outputs.version }}"
@@ -193,7 +200,8 @@ jobs:
             --title "AppImage Installer v$VERSION" \
             --notes-file release_notes.md
 
-      - name: Push version bump
+      - name: Bump version in repository
+        shell: bash
         run: |
           set -euo pipefail
           VERSION="${{ needs.prepare.outputs.version }}"
@@ -202,5 +210,5 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add source/constants.d
           git commit -m "Bump version to $VERSION"
-          git pull --rebase origin main
-          git push origin main
+          git pull --rebase origin "${GITHUB_REF_NAME}"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
