@@ -52,8 +52,16 @@ jobs:
           CURRENT=$(grep -oP '(?<=INSTALLER_VERSION = ")[^"]+' source/constants.d)
           IFS='.' read -r CUR_MAJOR CUR_MINOR CUR_PATCH <<< "$CURRENT"
           NEW_MAJOR=$(( CUR_MAJOR + INPUT_MAJOR ))
-          NEW_MINOR=$(( CUR_MINOR + INPUT_MINOR ))
-          NEW_PATCH=$(( CUR_PATCH + INPUT_PATCH ))
+          if (( INPUT_MAJOR > 0 )); then
+            NEW_MINOR=0
+            NEW_PATCH=0
+          elif (( INPUT_MINOR > 0 )); then
+            NEW_MINOR=$(( CUR_MINOR + INPUT_MINOR ))
+            NEW_PATCH=0
+          else
+            NEW_MINOR=$CUR_MINOR
+            NEW_PATCH=$(( CUR_PATCH + INPUT_PATCH ))
+          fi
           VERSION="$NEW_MAJOR.$NEW_MINOR.$NEW_PATCH"
           if ! [[  "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             echo "Computed version is not valid semver: $VERSION"
