@@ -107,9 +107,6 @@ public bool isAppImageAssociated() {
 	// Empty locale falls back to the base Exec= value
 	string execValue = readDesktopFieldLocalized(desktopPath, "Exec", "");
 	string currentExe = thisExePath();
-	import std.stdio : writeln;
-
-	writeln("association check: Exec=", execValue, " current=", currentExe);
 	return execValue.startsWith(currentExe);
 }
 

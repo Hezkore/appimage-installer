@@ -142,7 +142,7 @@ class Manifest {
 	}
 
 	private JSONValue buildJSON() {
-		auto json = parseJSON("{}");
+		auto json = JSONValue.emptyObject;
 		json["installerVersion"] = this.installerVersion;
 		json["installedAt"] = this.installedAt.length
 			? this.installedAt

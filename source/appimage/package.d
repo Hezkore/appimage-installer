@@ -149,7 +149,7 @@ class AppImage {
 					.day,
 					utcModTime.hour, utcModTime.minute, utcModTime.second);
 		} catch (FileException error) {
-			this.fileModified = "Unknown";
+			this.fileModified = L("common.unknown");
 		}
 		writeln("Modified: ", this.fileModified);
 
@@ -203,28 +203,29 @@ class AppImage {
 			return false;
 		}
 
-		ubyte[4] elfMagic;
+		// First 11 bytes cover ELF magic at 0-3, AppImage "AI" marker at 8-9, type at 10
+		ubyte[11] header;
 		try {
 			auto file = File(this.filePath, "rb");
-			file.rawRead(elfMagic[]);
+			size_t bytesRead = file.rawRead(header[]).length;
 			file.close();
+			if (bytesRead < header.length) {
+				writeln("File too small to be an AppImage: ", this.filePath);
+				return false;
+			}
 		} catch (ErrnoException error) {
 			writeln("Cannot read file: ", error.msg);
 			return false;
 		}
 
-		if (elfMagic != [0x7F, cast(ubyte) 'E', cast(ubyte) 'L', cast(ubyte) 'F']) {
+		if (header[0 .. 4] != [0x7F, cast(ubyte) 'E', cast(ubyte) 'L', cast(ubyte) 'F']) {
 			writeln("Not an ELF file: ", this.filePath);
 			return false;
 		}
 
-		try {
-			if (!(cast(string) read(this.filePath)).canFind("APPIMAGE")) {
-				writeln("APPIMAGE magic not found in: ", this.filePath);
-				return false;
-			}
-		} catch (FileException error) {
-			writeln("Failed reading file content: ", error.msg);
+		// Bytes 8–9 hold the "AI" magic present in all AppImages
+		if (header[8] != 0x41 || header[9] != 0x49 || header[10] == 0) {
+			writeln("APPIMAGE magic not found in: ", this.filePath);
 			return false;
 		}
 
