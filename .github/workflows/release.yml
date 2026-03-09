@@ -58,8 +58,6 @@ jobs:
     needs: prepare
     permissions:
       contents: read
-      id-token: write
-      attestations: write
     strategy:
       fail-fast: true
       matrix:
@@ -111,13 +109,6 @@ jobs:
           tar czf "$ARCHIVE" appimage-installer README.md
           sha256sum "$ARCHIVE" > "${ARCHIVE}.sha256"
           cat "${ARCHIVE}.sha256"
-
-      - name: Attest build provenance
-        uses: actions/attest-build-provenance@v2
-        with:
-          subject-path: |
-            AppImage_Installer-*.tar.gz
-            AppImage_Installer-*.tar.gz.sha256
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
