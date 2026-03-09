@@ -514,16 +514,32 @@ package AppRowResult buildAppRow(ManageWindow win, ref InstalledApp entry) {
 				if (capturedInstallMethod == InstallMethod.Extracted)
 					env["APPDIR"] = capturedDir;
 				if (installedAppManifest !is null
-				&& installedAppManifest.portableHome)
-					env["HOME"] = portableHomeDir(capturedDir);
+				&& installedAppManifest.portableHome) {
+					string portableHomePath = portableHomeDir(capturedDir);
+					// Create the dir if it's gone so the app can write to home
+					try {
+						mkdirRecurse(portableHomePath);
+					} catch (FileException) {
+					}
+					env["HOME"] = portableHomePath;
+					env["XDG_DATA_HOME"] = portableHomePath ~ "/.local/share";
+					env["XDG_CACHE_HOME"] = portableHomePath ~ "/.cache";
+					env["XDG_STATE_HOME"] = portableHomePath ~ "/.local/state";
+				}
 				if (installedAppManifest !is null
-				&& installedAppManifest.portableConfig)
-					env["XDG_CONFIG_HOME"] = portableConfigDir(capturedDir);
+				&& installedAppManifest.portableConfig) {
+					string portableConfigPath = portableConfigDir(capturedDir);
+					// Create the dir if it's gone so the app can write configs
+					try {
+						mkdirRecurse(portableConfigPath);
+					} catch (FileException) {
+					}
+					env["XDG_CONFIG_HOME"] = portableConfigPath;
+				}
 				pid = spawnProcess([launchPath], env);
 			} else {
 				pid = spawnProcess([launchPath]);
 			}
-			Button capturedBtn = launchButton;
 			Label capturedStatusLabel = rowStatusLabel;
 			string capturedAppName = capturedName;
 			auto watchThread = new Thread({

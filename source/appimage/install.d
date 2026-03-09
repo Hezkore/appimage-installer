@@ -5,10 +5,8 @@ import std.algorithm : canFind;
 import std.array : join;
 import std.exception : collectException;
 import std.file;
-import std.format : format;
 import std.path : buildPath, baseName, dirName;
 import std.process : execute, spawnProcess, Config, ProcessException;
-import std.regex : replaceAll, regex;
 import std.stdio : writeln;
 import std.string : startsWith, strip, split, indexOf, splitLines;
 
@@ -16,8 +14,8 @@ import appimage : AppImage, pathIsSymlink;
 import appimage.icon : installIconFromDir, installIconFromCachedData;
 import appimage.manifest : Manifest;
 import types : InstallMethod;
-import apputils : homeDir, xdgDataHome, installBaseDir;
-import constants : INSTALLER_VERSION, APPLICATIONS_SUBDIR;
+import apputils : xdgDataHome, installBaseDir;
+import constants : APPLICATIONS_SUBDIR;
 import constants : MANIFEST_FILE_NAME, DESKTOP_SUFFIX, APPIMAGE_EXEC_MODE;
 import lang : translateIn, availableLangs;
 import update.common : normalizeUpdateInfoPattern;
@@ -33,14 +31,8 @@ private enum Progress {
 	complete = 1.0
 }
 
-// Returns the installed desktop file path for an app
-private string installedDesktopPath(
-	string appDirectory, string sanitizedName) {
-	return buildPath(appDirectory, APPLICATIONS_SUBDIR, sanitizedName ~ DESKTOP_SUFFIX);
-}
-
-// Rewrites Exec= lines to add or remove HOME and XDG_CONFIG_HOME portable env vars
-// Matches the launch line for the app's current mode, AppRun for Extracted or .AppImage otherwise
+// Update and Uninstall actions are excluded since those always use the installer binary
+// All other Exec= lines are rebuilt so no stale launcher path can be left behind
 public void reapplyPortableExec(
 	string desktopPath,
 	string appDirectory,
@@ -50,9 +42,6 @@ public void reapplyPortableExec(
 	bool portableConfig) {
 	if (!exists(desktopPath))
 		return;
-	string metaDir = buildPath(appDirectory, APPLICATIONS_SUBDIR);
-	string homeDir = portableHome ? buildPath(metaDir, "portable.home") : "";
-	string configDir = portableConfig ? buildPath(metaDir, "portable.config") : "";
 	string launcherPath = (method == InstallMethod.Extracted)
 		? buildPath(appDirectory, "AppRun") : buildPath(appDirectory, sanitizedName ~ ".AppImage");
 	string raw;
@@ -61,43 +50,32 @@ public void reapplyPortableExec(
 	} catch (FileException) {
 		return;
 	}
-	bool changed = false;
+	bool inExecSection = false;
 	string[] result;
 	foreach (line; raw.splitLines()) {
-		auto launcherStart = line.indexOf(launcherPath);
-		if (!line.startsWith("Exec=") || launcherStart < 0) {
-			result ~= line;
+		string stripped = line.strip();
+		if (stripped == "[Desktop Entry]") {
+			inExecSection = true;
+		} else if (stripped.length && stripped[0] == '[') {
+			inExecSection = stripped.startsWith("[Desktop Action ")
+				&& stripped != "[Desktop Action Update]"
+				&& stripped != "[Desktop Action Uninstall]";
+		}
+		if (inExecSection && stripped.startsWith("Exec=")) {
+			string newLine;
+			if (portableHome || portableConfig) {
+				newLine = "Exec=" ~ buildPortableEnvPrefix(
+					appDirectory, portableHome, portableConfig)
+					~ " " ~ launcherPath;
+			} else if (method == InstallMethod.Extracted) {
+				newLine = "Exec=env APPDIR=" ~ appDirectory ~ " " ~ launcherPath;
+			} else {
+				newLine = "Exec=" ~ launcherPath;
+			}
+			result ~= newLine;
 			continue;
 		}
-		// Keep trailing args (everything after the launcher path)
-		auto launcherEnd = launcherStart + launcherPath.length;
-		string trailingArgs = launcherEnd < line.length ? line[launcherEnd .. $] : "";
-		string newLine;
-		if (method == InstallMethod.Extracted) {
-			newLine = "Exec=env APPDIR=" ~ appDirectory;
-			if (homeDir.length)
-				newLine ~= " HOME=" ~ homeDir;
-			if (configDir.length)
-				newLine ~= " XDG_CONFIG_HOME=" ~ configDir;
-			newLine ~= " " ~ launcherPath ~ trailingArgs;
-		} else {
-			if (homeDir.length || configDir.length) {
-				newLine = "Exec=env";
-				if (homeDir.length)
-					newLine ~= " HOME=" ~ homeDir;
-				if (configDir.length)
-					newLine ~= " XDG_CONFIG_HOME=" ~ configDir;
-				newLine ~= " " ~ launcherPath ~ trailingArgs;
-			} else {
-				newLine = "Exec=" ~ launcherPath ~ trailingArgs;
-			}
-		}
-		result ~= newLine;
-		changed = true;
-	}
-	if (!changed) {
-		writeln("reapplyPortableExec: no matching Exec= found in ", desktopPath);
-		return;
+		result ~= line;
 	}
 	try {
 		write(desktopPath, result.join("\n") ~ "\n");
@@ -106,8 +84,8 @@ public void reapplyPortableExec(
 	}
 }
 
-// Rewrites Exec= and TryExec= lines when switching install modes
-// Finds the old launcher path so the new path and env setup can be substituted
+// The launcher path changes when the install mode does so all exec references need updating
+// Only lines containing the old path are touched to avoid corrupting other Exec= entries
 public void rewriteDesktopForModeSwitch(
 	string desktopPath,
 	string appDirectory,
@@ -118,9 +96,6 @@ public void rewriteDesktopForModeSwitch(
 	bool portableConfig) {
 	if (!exists(desktopPath))
 		return;
-	string metaDir = buildPath(appDirectory, APPLICATIONS_SUBDIR);
-	string homePath = portableHome ? buildPath(metaDir, "portable.home") : "";
-	string configPath = portableConfig ? buildPath(metaDir, "portable.config") : "";
 	string oldLauncher = (oldMethod == InstallMethod.Extracted)
 		? buildPath(appDirectory, "AppRun") : buildPath(appDirectory, sanitizedName ~ ".AppImage");
 	string newLauncher = (newMethod == InstallMethod.Extracted)
@@ -145,28 +120,20 @@ public void rewriteDesktopForModeSwitch(
 			changed = true;
 			continue;
 		}
-		auto launcherPos = line.indexOf(oldLauncher);
-		if (!stripped.startsWith("Exec=") || launcherPos < 0) {
+		if (!stripped.startsWith("Exec=") || line.indexOf(oldLauncher) < 0) {
 			result ~= line;
 			continue;
 		}
+		auto launcherPos = line.indexOf(oldLauncher);
 		auto launcherEnd = launcherPos + oldLauncher.length;
 		string trailingArgs = launcherEnd < line.length ? line[launcherEnd .. $] : "";
 		string newLine;
-		if (newMethod == InstallMethod.Extracted) {
-			newLine = "Exec=env APPDIR=" ~ appDirectory;
-			if (homePath.length)
-				newLine ~= " HOME=" ~ homePath;
-			if (configPath.length)
-				newLine ~= " XDG_CONFIG_HOME=" ~ configPath;
-			newLine ~= " " ~ newLauncher ~ trailingArgs;
-		} else if (homePath.length || configPath.length) {
-			newLine = "Exec=env";
-			if (homePath.length)
-				newLine ~= " HOME=" ~ homePath;
-			if (configPath.length)
-				newLine ~= " XDG_CONFIG_HOME=" ~ configPath;
-			newLine ~= " " ~ newLauncher ~ trailingArgs;
+		if (portableHome || portableConfig) {
+			newLine = "Exec=" ~ buildPortableEnvPrefix(
+				appDirectory, portableHome, portableConfig)
+				~ " " ~ newLauncher ~ trailingArgs;
+		} else if (newMethod == InstallMethod.Extracted) {
+			newLine = "Exec=env APPDIR=" ~ appDirectory ~ " " ~ newLauncher ~ trailingArgs;
 		} else {
 			newLine = "Exec=" ~ newLauncher ~ trailingArgs;
 		}
@@ -234,15 +201,29 @@ private string buildActionsValue(string existing, bool hasUpdate, bool hasUninst
 	return result;
 }
 
-// Returns the portable $HOME directory path for an installed app
-// Both install modes use the same location inside the metadata directory
+// Both install modes keep portable dirs in the same location inside the metadata directory
 public string portableHomeDir(string appDirectory) {
 	return buildPath(appDirectory, APPLICATIONS_SUBDIR, "portable.home");
 }
 
-// Returns the portable $XDG_CONFIG_HOME directory path for an installed app
 public string portableConfigDir(string appDirectory) {
 	return buildPath(appDirectory, APPLICATIONS_SUBDIR, "portable.config");
+}
+
+// Covers HOME and all XDG dirs that session env may already have set
+private string buildPortableEnvPrefix(
+	string appDirectory, bool portableHome, bool portableConfig) {
+	string prefix = "env";
+	if (portableHome) {
+		string portableHomePath = portableHomeDir(appDirectory);
+		prefix ~= " HOME=" ~ portableHomePath;
+		prefix ~= " XDG_DATA_HOME=" ~ portableHomePath ~ "/.local/share";
+		prefix ~= " XDG_CACHE_HOME=" ~ portableHomePath ~ "/.cache";
+		prefix ~= " XDG_STATE_HOME=" ~ portableHomePath ~ "/.local/state";
+	}
+	if (portableConfig)
+		prefix ~= " XDG_CONFIG_HOME=" ~ portableConfigDir(appDirectory);
+	return prefix;
 }
 
 // Removes everything under appDir except the metadata subdirectory
@@ -258,8 +239,8 @@ public void clearAppDirExceptMeta(string appDir) {
 				rmdirRecurse(entry.name);
 			else
 				std.file.remove(entry.name);
-		} catch (FileException e) {
-			writeln("clearAppDirExceptMeta: skipped ", entry.name, ": ", e.msg);
+		} catch (FileException error) {
+			writeln("clearAppDirExceptMeta: skipped ", entry.name, ": ", error.msg);
 		}
 	}
 }
@@ -269,10 +250,8 @@ public void writeDesktopFile(
 	string appRunPath) {
 	// Both modes store portable dirs inside the metadata directory
 	string baseDir = appExtractDir.length ? appExtractDir : dirName(appRunPath);
-	string portableHomePath = appImage.portableHome
-		? buildPath(baseDir, APPLICATIONS_SUBDIR, "portable.home") : "";
-	string portableConfigPath = appImage.portableConfig
-		? buildPath(baseDir, APPLICATIONS_SUBDIR, "portable.config") : "";
+	string portableHomePath = appImage.portableHome ? portableHomeDir(baseDir) : "";
+	string portableConfigPath = appImage.portableConfig ? portableConfigDir(baseDir) : "";
 	string[] outputLines;
 	// True while parsing [Desktop Entry], needed for Icon= and TryExec= rewrites
 	bool inDesktopEntry = false;
@@ -305,26 +284,15 @@ public void writeDesktopFile(
 			string afterEquals = stripped[5 .. $];
 			auto spaceIndex = afterEquals.indexOf(' ');
 			string trailingArgs = (spaceIndex != -1) ? afterEquals[spaceIndex .. $] : "";
-			if (appImage.installMethod == InstallMethod.Extracted) {
+			if (portableHomePath.length || portableConfigPath.length) {
+				outputLines ~= "Exec=" ~ buildPortableEnvPrefix(
+					baseDir, appImage.portableHome, appImage.portableConfig)
+					~ " " ~ appRunPath ~ trailingArgs;
+			} else if (appImage.installMethod == InstallMethod.Extracted) {
 				// Explicitly set APPDIR so custom AppRun scripts that detect it via $1 don't break
-				string envLine = "Exec=env APPDIR=" ~ appExtractDir;
-				if (portableHomePath.length)
-					envLine ~= " HOME=" ~ portableHomePath;
-				if (portableConfigPath.length)
-					envLine ~= " XDG_CONFIG_HOME=" ~ portableConfigPath;
-				outputLines ~= envLine ~ " " ~ appRunPath ~ trailingArgs;
+				outputLines ~= "Exec=env APPDIR=" ~ appExtractDir ~ " " ~ appRunPath ~ trailingArgs;
 			} else {
-				// In AppImage mode the ELF runtime mounts and sets APPDIR itself
-				if (portableHomePath.length || portableConfigPath.length) {
-					string envLine = "Exec=env";
-					if (portableHomePath.length)
-						envLine ~= " HOME=" ~ portableHomePath;
-					if (portableConfigPath.length)
-						envLine ~= " XDG_CONFIG_HOME=" ~ portableConfigPath;
-					outputLines ~= envLine ~ " " ~ appRunPath ~ trailingArgs;
-				} else {
-					outputLines ~= "Exec=" ~ appRunPath ~ trailingArgs;
-				}
+				outputLines ~= "Exec=" ~ appRunPath ~ trailingArgs;
 			}
 			continue;
 		}
