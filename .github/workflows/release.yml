@@ -1,0 +1,222 @@
+name: Make new release
+
+on:
+  workflow_dispatch:
+    inputs:
+      major:
+        description: Bump major by
+        required: true
+        type: number
+        default: 0
+      minor:
+        description: Bump minor by
+        required: true
+        type: number
+        default: 0
+      patch:
+        description: Bump patch by
+        required: true
+        type: number
+        default: 0
+
+permissions:
+  contents: read
+
+jobs:
+  prepare:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.version.outputs.value }}
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Reject no-op release
+        if: inputs.major == 0 && inputs.minor == 0 && inputs.patch == 0
+        run: |
+          set -euo pipefail
+          echo "All version bumps are 0, nothing to release"
+          exit 1
+
+      - name: Compute version
+        id: version
+        env:
+          INPUT_MAJOR: ${{ inputs.major }}
+          INPUT_MINOR: ${{ inputs.minor }}
+          INPUT_PATCH: ${{ inputs.patch }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          CURRENT=$(grep -oP '(?<=INSTALLER_VERSION = ")[^"]+' source/constants.d)
+          IFS='.' read -r CUR_MAJOR CUR_MINOR CUR_PATCH <<< "$CURRENT"
+          NEW_MAJOR=$(( CUR_MAJOR + INPUT_MAJOR ))
+          if (( INPUT_MAJOR > 0 )); then
+            NEW_MINOR=0
+            NEW_PATCH=0
+          elif (( INPUT_MINOR > 0 )); then
+            NEW_MINOR=$(( CUR_MINOR + INPUT_MINOR ))
+            NEW_PATCH=0
+          else
+            NEW_MINOR=$CUR_MINOR
+            NEW_PATCH=$(( CUR_PATCH + INPUT_PATCH ))
+          fi
+          VERSION="$NEW_MAJOR.$NEW_MINOR.$NEW_PATCH"
+          if ! [[  "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Computed version is not valid semver: $VERSION"
+            exit 1
+          fi
+          echo "value=$VERSION" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: prepare
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - runs-on: ubuntu-24.04
+            arch: x86_64
+            compiler: dmd-latest
+            dub_compiler: dmd
+          - runs-on: ubuntu-24.04-arm
+            arch: aarch64
+            compiler: ldc-latest
+            dub_compiler: ldc2
+    runs-on: ${{ matrix.runs-on }}
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Patch version
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="${{ needs.prepare.outputs.version }}"
+          sed -i "s/enum string INSTALLER_VERSION = \".*\";/enum string INSTALLER_VERSION = \"$VERSION\";/" source/constants.d
+          grep -q "INSTALLER_VERSION = \"$VERSION\"" source/constants.d \
+            || { echo "Version patch failed"; exit 1; }
+
+      - name: Install GTK4
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -y
+          sudo apt-get install -y --no-install-recommends libgtk-4-dev
+
+      - name: Set up D
+        uses: dlang-community/setup-dlang@0a7469b93f791d83f30932c6fd105796c6966e20 # v2.0.0 (latest)
+        with:
+          compiler: ${{ matrix.compiler }}
+
+      - name: Build
+        run: dub build -b release --compiler=${{ matrix.dub_compiler }}
+
+      - name: Strip binary
+        run: strip -s appimage-installer
+
+      - name: Health check
+        run: ./appimage-installer --health
+
+      - name: Package
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="${{ needs.prepare.outputs.version }}"
+          ARCH="${{ matrix.arch }}"
+          ARCHIVE="AppImage_Installer-${VERSION}-${ARCH}.tar.gz"
+          sha256sum appimage-installer > appimage-installer.sha256
+          tar czf "$ARCHIVE" appimage-installer appimage-installer.sha256 README.md
+          cp appimage-installer.sha256 "appimage-installer-${ARCH}.sha256"
+          sha256sum "$ARCHIVE" > "${ARCHIVE}.sha256"
+          cat "${ARCHIVE}.sha256"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: build-${{ matrix.arch }}
+          path: |
+            AppImage_Installer-*.tar.gz
+            AppImage_Installer-*.tar.gz.sha256
+            appimage-installer-*.sha256
+
+  publish:
+    needs: [prepare, build]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download artifacts
+        uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8.0.0
+        with:
+          pattern: build-*
+          merge-multiple: true
+
+      - name: Verify checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+          for f in AppImage_Installer-*.tar.gz; do
+            echo "Verifying $f..."
+            sha256sum --check "${f}.sha256"
+          done
+
+      - name: Write release notes
+        shell: bash
+        run: |
+          set -euo pipefail
+          FIRST=true
+          {
+            for ARCH in x86_64 aarch64; do
+              BIN_SHA_FILE="appimage-installer-${ARCH}.sha256"
+              [[ -f "$BIN_SHA_FILE" ]] || continue
+              ARC_SHA_FILES=(AppImage_Installer-*-${ARCH}.tar.gz.sha256)
+              ARC_SHA_FILE="${ARC_SHA_FILES[0]}"
+              ARCHIVE=$(basename "${ARC_SHA_FILE%.sha256}")
+              BIN_SHA=$(cut -d' ' -f1 "$BIN_SHA_FILE")
+              ARC_SHA=$(cut -d' ' -f1 "$ARC_SHA_FILE")
+              if [[ "$FIRST" != "true" ]]; then
+                printf '\n---\n\n'
+              fi
+              FIRST=false
+              printf '## %s\n\n' "$ARCH"
+              printf '**SHA256** for `appimage-installer`\n```\n%s  appimage-installer\n```\n' \
+                "$BIN_SHA"
+              printf '\n**SHA256** for `%s`\n```\n%s  %s\n```\n' \
+                "$ARCHIVE" "$ARC_SHA" "$ARCHIVE"
+            done
+          } > release_notes.md
+          cat release_notes.md
+
+      - name: Create release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="${{ needs.prepare.outputs.version }}"
+          gh release create "$VERSION" \
+            AppImage_Installer-*.tar.gz \
+            AppImage_Installer-*.tar.gz.sha256 \
+            --title "AppImage Installer v$VERSION" \
+            --notes-file release_notes.md
+
+      - name: Bump version in repository
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="${{ needs.prepare.outputs.version }}"
+          sed -i "s/enum string INSTALLER_VERSION = \".*\";/enum string INSTALLER_VERSION = \"$VERSION\";/" source/constants.d
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add source/constants.d
+          git commit -m "Bump version to $VERSION"
+          git pull --rebase origin "${GITHUB_REF_NAME}"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
