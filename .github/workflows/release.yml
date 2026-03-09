@@ -146,7 +146,6 @@ jobs:
         run: |
           VERSION="${{ needs.prepare.outputs.version }}"
           {
-            echo "AppImage Installer version $VERSION"
             for f in $(ls AppImage_Installer-*.tar.gz | sort); do
               echo ""
               echo "SHA256 for $f"
