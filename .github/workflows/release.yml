@@ -150,19 +150,25 @@ jobs:
           FIRST=true
           {
             for ARCH in x86_64 aarch64; do
-              SHA_FILE="appimage-installer-${ARCH}.sha256"
-              [[ -f "$SHA_FILE" ]] || continue
+              BIN_SHA_FILE="appimage-installer-${ARCH}.sha256"
+              ARCHIVE="AppImage_Installer-${ARCH}.tar.gz"
+              ARC_SHA_FILE="${ARCHIVE}.sha256"
+              [[ -f "$BIN_SHA_FILE" ]] || continue
               if [[ "$FIRST" != "true" ]]; then
                 echo ""
                 echo "---"
                 echo ""
               fi
               FIRST=false
+              BIN_SHA=$(awk '{print $1}' "$BIN_SHA_FILE")
+              ARC_SHA=$(awk '{print $1}' "$ARC_SHA_FILE")
               echo "## ${ARCH}"
               echo ""
-              echo '```'
-              cat "$SHA_FILE"
-              echo '```'
+              echo "**appimage-installer** Binary SHA256:"
+              echo "\`${BIN_SHA}\`"
+              echo ""
+              echo "**${ARCHIVE}** SHA256:"
+              echo "\`${ARC_SHA}\`"
             done
           } > release_notes.md
           cat release_notes.md
