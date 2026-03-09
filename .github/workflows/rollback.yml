@@ -4,11 +4,13 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   rollback:
     runs-on: ubuntu-24.04
+    permissions:
+      contents: write
 
     steps:
       - uses: actions/checkout@v4
@@ -26,6 +28,10 @@ jobs:
             echo "No releases found, nothing to roll back"
             exit 1
           fi
+          if ! [[ "$LATEST_TAG" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Latest tag is not valid semver: $LATEST_TAG"
+            exit 1
+          fi
           echo "latest_tag=$LATEST_TAG" >> "$GITHUB_OUTPUT"
 
           PREV_TAG=$(gh release list --exclude-pre-releases --limit 2 --json tagName --jq '.[1].tagName // ""')
@@ -34,12 +40,18 @@ jobs:
           else
             PREV_VER="${PREV_TAG#v}"
           fi
+          if ! [[ "$PREV_VER" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Previous version is not valid semver: $PREV_VER"
+            exit 1
+          fi
           echo "prev_ver=$PREV_VER" >> "$GITHUB_OUTPUT"
 
       - name: Revert version in source
         run: |
           PREV="${{ steps.versions.outputs.prev_ver }}"
           sed -i "s/enum string INSTALLER_VERSION = \".*\";/enum string INSTALLER_VERSION = \"$PREV\";/" source/constants.d
+          grep -q "INSTALLER_VERSION = \"$PREV\"" source/constants.d \
+            || { echo "Version revert failed"; exit 1; }
 
       - name: Delete latest release
         env:

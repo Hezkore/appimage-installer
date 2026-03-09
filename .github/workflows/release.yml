@@ -20,11 +20,13 @@ on:
         default: 0
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   prepare:
     runs-on: ubuntu-24.04
+    permissions:
+      contents: read
     outputs:
       version: ${{ steps.version.outputs.value }}
 
@@ -46,12 +48,20 @@ jobs:
           NEW_MINOR=$(( CUR_MINOR + ${{ inputs.minor }} ))
           NEW_PATCH=$(( CUR_PATCH + ${{ inputs.patch }} ))
           VERSION="$NEW_MAJOR.$NEW_MINOR.$NEW_PATCH"
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Computed version is not valid semver: $VERSION"
+            exit 1
+          fi
           echo "value=$VERSION" >> "$GITHUB_OUTPUT"
 
   build:
     needs: prepare
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
     strategy:
-      fail-fast: false
+      fail-fast: true
       matrix:
         include:
           - runs-on: ubuntu-24.04
@@ -71,11 +81,13 @@ jobs:
         run: |
           VERSION="${{ needs.prepare.outputs.version }}"
           sed -i "s/enum string INSTALLER_VERSION = \".*\";/enum string INSTALLER_VERSION = \"$VERSION\";/" source/constants.d
+          grep -q "INSTALLER_VERSION = \"$VERSION\"" source/constants.d \
+            || { echo "Version patch failed"; exit 1; }
 
       - name: Install GTK4
         run: |
           sudo apt-get update -y
-          sudo apt-get install -y libgtk-4-dev
+          sudo apt-get install -y --no-install-recommends libgtk-4-dev
 
       - name: Set up D
         uses: dlang-community/setup-dlang@v2
@@ -95,17 +107,31 @@ jobs:
         run: |
           VERSION="${{ needs.prepare.outputs.version }}"
           ARCH="${{ matrix.arch }}"
-          tar czf "AppImage_Installer-${VERSION}-${ARCH}.tar.gz" appimage-installer README.md
+          ARCHIVE="AppImage_Installer-${VERSION}-${ARCH}.tar.gz"
+          tar czf "$ARCHIVE" appimage-installer README.md
+          sha256sum "$ARCHIVE" > "${ARCHIVE}.sha256"
+          cat "${ARCHIVE}.sha256"
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: |
+            AppImage_Installer-*.tar.gz
+            AppImage_Installer-*.tar.gz.sha256
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: build-${{ matrix.arch }}
-          path: AppImage_Installer-*.tar.gz
+          path: |
+            AppImage_Installer-*.tar.gz
+            AppImage_Installer-*.tar.gz.sha256
 
   publish:
     needs: [prepare, build]
     runs-on: ubuntu-24.04
+    permissions:
+      contents: write
 
     steps:
       - uses: actions/checkout@v4
@@ -118,14 +144,36 @@ jobs:
           pattern: build-*
           merge-multiple: true
 
+      - name: Verify checksums
+        run: |
+          for f in AppImage_Installer-*.tar.gz; do
+            echo "Verifying $f..."
+            sha256sum --check "${f}.sha256"
+          done
+
+      - name: Build release notes
+        run: |
+          VERSION="${{ needs.prepare.outputs.version }}"
+          {
+            echo "Release $VERSION"
+            for f in $(ls AppImage_Installer-*.tar.gz | sort); do
+              echo ""
+              echo "SHA256 for $f"
+              cat "${f}.sha256"
+            done
+          } > release_notes.md
+          cat release_notes.md
+
       - name: Create release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           VERSION="${{ needs.prepare.outputs.version }}"
-          gh release create "$VERSION" AppImage_Installer-*.tar.gz \
+          gh release create "$VERSION" \
+            AppImage_Installer-*.tar.gz \
+            AppImage_Installer-*.tar.gz.sha256 \
             --title "$VERSION" \
-            --notes "Release $VERSION"
+            --notes-file release_notes.md
 
       - name: Push version bump
         run: |

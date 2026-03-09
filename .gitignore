@@ -20,6 +20,7 @@ local_*.ini
 local_*.cfg
 .editorconfig
 .github/*
+!.github/dependabot.yml
 !.github/workflows
 .github/workflows/*
 !.github/workflows/release.yml
