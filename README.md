@@ -1,4 +1,5 @@
-A desktop application for Linux that installs [AppImage](https://appimage.org) files and gives them proper desktop integration.
+A desktop application for Linux that installs [AppImage](https://appimage.org) files and gives them proper desktop integration.\
+Extremely fast and lightweight.
 
 Simply double-click an AppImage to install it, and your new application appears in your launcher.\
 Right-click any installed application to instantly update or uninstall it.
