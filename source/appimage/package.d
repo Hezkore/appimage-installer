@@ -218,7 +218,9 @@ class AppImage {
 			return false;
 		}
 
-		if (header[0 .. 4] != [0x7F, cast(ubyte) 'E', cast(ubyte) 'L', cast(ubyte) 'F']) {
+		if (header[0 .. 4] != [
+				0x7F, cast(ubyte) 'E', cast(ubyte) 'L', cast(ubyte) 'F'
+			]) {
 			writeln("Not an ELF file: ", this.filePath);
 			return false;
 		}
