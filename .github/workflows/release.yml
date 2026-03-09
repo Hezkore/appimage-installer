@@ -113,7 +113,7 @@ jobs:
           cat "${ARCHIVE}.sha256"
 
       - name: Attest build provenance
-        uses: actions/attest-build-provenance@v2
+        uses: actions/attest-build-provenance@v4
         with:
           subject-path: |
             AppImage_Installer-*.tar.gz
