@@ -15,15 +15,6 @@ declare -r SYSTEMD_DIR="${HOME}/.config/systemd/user"
 ARCH=$(uname -m)
 readonly ARCH
 declare -r API_URL="https://api.github.com/repos/Hezkore/appimage-installer/releases/latest"
-VERSION=$(curl -sSL "${API_URL}" | grep -oP '(?<="tag_name": ")[^"]+' | head -1)
-readonly VERSION
-
-if [[ -z "${VERSION}" ]]; then
-	echo "Error: no releases found. Check https://github.com/Hezkore/appimage-installer/releases" >&2
-	exit ${EXIT_MISSING_VERSION}
-fi
-
-declare -r DOWNLOAD_URL="https://github.com/Hezkore/appimage-installer/releases/download/${VERSION}/AppImage_Installer-${VERSION}-${ARCH}.tar.gz"
 
 # Detect the system package manager for use in install hints
 detect_install_cmd() {
@@ -53,6 +44,16 @@ require_command() {
 
 require_command curl curl
 require_command tar  tar
+
+VERSION=$(curl -sSL "${API_URL}" | grep -oP '(?<="tag_name": ")[^"]+' | head -1)
+readonly VERSION
+
+if [[ -z "${VERSION}" ]]; then
+	echo "Error: no releases found. Check https://github.com/Hezkore/appimage-installer/releases" >&2
+	exit ${EXIT_MISSING_VERSION}
+fi
+
+declare -r DOWNLOAD_URL="https://github.com/Hezkore/appimage-installer/releases/download/${VERSION}/AppImage_Installer-${VERSION}-${ARCH}.tar.gz"
 
 # Ask a yes/no question and return 0 for yes, 1 for no
 # Read from /dev/tty so it works when the script is piped via curl | bash
