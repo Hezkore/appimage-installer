@@ -28,7 +28,7 @@ class App : Application {
 	this(string[] args) {
 		AppArgs parsed = parseArgs(args);
 		bool isBg = parsed.mode == AppMode.BackgroundUpdate;
-		super(isBg ? BGUPDATE_APP_ID : APP_ID, ApplicationFlags.DefaultFlags);
+		super(isBg ? BGUPDATE_APP_ID : APP_ID, ApplicationFlags.NonUnique);
 		this.mainThreadId = thisTid;
 		this.parsedArgs = parsed;
 		this.shouldQuit = this.parsedArgs.shouldQuit;
