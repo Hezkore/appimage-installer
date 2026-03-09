@@ -1,0 +1,139 @@
+name: Make new release
+
+on:
+  workflow_dispatch:
+    inputs:
+      major:
+        description: Bump major by
+        required: true
+        type: number
+        default: 0
+      minor:
+        description: Bump minor by
+        required: true
+        type: number
+        default: 0
+      patch:
+        description: Bump patch by
+        required: true
+        type: number
+        default: 0
+
+permissions:
+  contents: write
+
+jobs:
+  prepare:
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.version.outputs.value }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check inputs
+        if: inputs.major == 0 && inputs.minor == 0 && inputs.patch == 0
+        run: |
+          echo "All version bumps are 0, nothing to release"
+          exit 1
+
+      - name: Set version
+        id: version
+        run: |
+          CURRENT=$(grep -oP '(?<=INSTALLER_VERSION = ")[^"]+' source/constants.d)
+          IFS='.' read -r CUR_MAJOR CUR_MINOR CUR_PATCH <<< "$CURRENT"
+          NEW_MAJOR=$(( CUR_MAJOR + ${{ inputs.major }} ))
+          NEW_MINOR=$(( CUR_MINOR + ${{ inputs.minor }} ))
+          NEW_PATCH=$(( CUR_PATCH + ${{ inputs.patch }} ))
+          VERSION="$NEW_MAJOR.$NEW_MINOR.$NEW_PATCH"
+          echo "value=$VERSION" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: prepare
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runs-on: ubuntu-24.04
+            arch: x86_64
+            compiler: dmd-latest
+            dub_compiler: dmd
+          - runs-on: ubuntu-24.04-arm
+            arch: aarch64
+            compiler: ldc-latest
+            dub_compiler: ldc2
+    runs-on: ${{ matrix.runs-on }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Patch version
+        run: |
+          VERSION="${{ needs.prepare.outputs.version }}"
+          sed -i "s/enum string INSTALLER_VERSION = \".*\";/enum string INSTALLER_VERSION = \"$VERSION\";/" source/constants.d
+
+      - name: Install GTK4
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y libgtk-4-dev
+
+      - name: Set up D
+        uses: dlang-community/setup-dlang@v2
+        with:
+          compiler: ${{ matrix.compiler }}
+
+      - name: Build
+        run: dub build -b release --compiler=${{ matrix.dub_compiler }}
+
+      - name: Strip binary
+        run: strip -s appimage-installer
+
+      - name: Health check
+        run: ./appimage-installer --health
+
+      - name: Package
+        run: |
+          VERSION="${{ needs.prepare.outputs.version }}"
+          ARCH="${{ matrix.arch }}"
+          tar czf "AppImage_Installer-${VERSION}-${ARCH}.tar.gz" appimage-installer README.md
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-${{ matrix.arch }}
+          path: AppImage_Installer-*.tar.gz
+
+  publish:
+    needs: [prepare, build]
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: build-*
+          merge-multiple: true
+
+      - name: Create release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ needs.prepare.outputs.version }}"
+          gh release create "$VERSION" AppImage_Installer-*.tar.gz \
+            --title "$VERSION" \
+            --notes "Release $VERSION"
+
+      - name: Push version bump
+        run: |
+          VERSION="${{ needs.prepare.outputs.version }}"
+          sed -i "s/enum string INSTALLER_VERSION = \".*\";/enum string INSTALLER_VERSION = \"$VERSION\";/" source/constants.d
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add source/constants.d
+          git commit -m "Bump version to $VERSION"
+          git pull --rebase origin main
+          git push origin main

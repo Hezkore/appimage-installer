@@ -1,0 +1,13 @@
+{
+	"authors": [
+		"Hezkore"
+	],
+	"copyright": "Copyright © 2025, Hezkore",
+	"dependencies": {
+		"gid:gtk4": "==0.9.7"
+	},
+	"description": "A minimal installer for AppImages",
+	"license": "proprietary",
+	"name": "appimage-installer",
+	"stringImportPaths": ["lang"]
+}
