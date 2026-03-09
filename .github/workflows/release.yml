@@ -162,7 +162,7 @@ jobs:
           gh release create "$VERSION" \
             AppImage_Installer-*.tar.gz \
             AppImage_Installer-*.tar.gz.sha256 \
-            --title "AppImage Installer version $VERSION" \
+            --title "AppImage Installer v$VERSION" \
             --notes-file release_notes.md
 
       - name: Push version bump
