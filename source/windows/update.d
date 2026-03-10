@@ -29,7 +29,7 @@ import gtk.types : SelectionMode, StackTransitionType;
 import gtk.window : Window;
 
 import application : App;
-import windows.base : AppWindow, makeSlideDownRevealer, makeBackButton, revealAfterDelay, makeIcon;
+import windows.base : AppWindow, makeSlideDownRevealer, makeBackButton, revealAfterDelay, makeIcon, setIconNames;
 import windows.base : ACTION_BTN_WIDTH, ACTION_BTN_HEIGHT, ANIM_DURATION_MS;
 import windows.base : CONTENT_REVEAL_DELAY_MS, ACTION_REVEAL_DELAY_MS;
 import windows.addupdate : buildAddUpdateMethodBox;
@@ -168,7 +168,10 @@ package Box buildUpdateBox(
 			writeln("UpdateWindow: 'Update Now' not yet implemented.");
 		});
 	} else {
-		iconNames = ["emblem-ok-symbolic"];
+		iconNames = [
+			"emblem-default-symbolic", "emblem-ok-symbolic",
+			"object-select-symbolic"
+		];
 		title = L("update.title.up_to_date");
 		description = installedVersion.length
 			? L("update.up_to_date.description.versioned",
@@ -277,7 +280,9 @@ private void buildUpdateFlow(
 	spinner.setSizeRequest(Layout.spinnerSize, Layout.spinnerSize);
 	spinner.setHalign(Align.Center);
 
-	auto doneIconImg = Image.newFromIconName("emblem-default-symbolic");
+	auto doneIconImg = makeIcon([
+		"emblem-default-symbolic", "emblem-ok-symbolic", "object-select-symbolic"
+	]);
 	doneIconImg.addCssClass("icon-large");
 
 	auto iconStack = new Stack;
@@ -411,8 +416,11 @@ private void buildUpdateFlow(
 				progressRevealer.setRevealChild(false);
 			}),
 			TimedStep(ANIM_DURATION_MS + AnimationDelay.doneDelayMs, {
-				doneIconImg.setFromIconName(updateSuccess
-					? "emblem-default-symbolic" : "dialog-warning-symbolic");
+				setIconNames(doneIconImg, updateSuccess
+					? [
+						"emblem-default-symbolic", "emblem-ok-symbolic",
+						"object-select-symbolic"
+					] : ["dialog-warning-symbolic"]);
 				if (updateSuccess)
 					doneIconImg.addCssClass("success");
 				doneTitleLabel.setLabel(updateSuccess

@@ -41,7 +41,7 @@ import update.zsync : isZsync, extractZsyncUrl;
 import update.pling : isPling, parsePlingId;
 import windows.addupdate : buildAddUpdateMethodBox;
 import windows.addupdate.helpers : isValidDirect, isValidGitHub, isValidPling, isValidZsync;
-import windows.base : ANIM_DURATION_MS;
+import windows.base : ANIM_DURATION_MS, makeIcon;
 import constants : APPLICATIONS_SUBDIR, DESKTOP_SUFFIX, TAG_LATEST, TAG_LATEST_PRE, TAG_LATEST_ALL;
 import lang : L;
 
@@ -216,14 +216,14 @@ Box buildOptionsBox(
 
 	// Selectable card row for the release type list, with a check icon on the left
 	ListBoxRow makeTagCard(
-		string iconName, string title, string subtitle, out Image checkMark) {
+		string[] iconNames, string title, string subtitle, out Image checkMark) {
 		checkMark = Image.newFromIconName("object-select-symbolic");
 		checkMark.setPixelSize(Layout.checkMarkSize);
 		checkMark.setValign(Align.Center);
 		checkMark.setMarginEnd(Layout.checkIconMarginEnd);
 		checkMark.setVisible(false);
 
-		auto icon = Image.newFromIconName(iconName);
+		auto icon = makeIcon(iconNames);
 		icon.setPixelSize(Layout.cardIconSize);
 		icon.setValign(Align.Center);
 		icon.setMarginEnd(Layout.cardIconMarginEnd);
@@ -349,22 +349,24 @@ Box buildOptionsBox(
 	releaseList.setVisible(false);
 	Image checkLatest, checkLatestPre, checkLatestAll, checkSpecific;
 	auto rowLatest = makeTagCard(
-		"emblem-ok-symbolic",
-		L("options.update.release.latest"),
-		L("options.update.release.latest.sub"),
-		checkLatest);
+		[
+		"emblem-ok-symbolic", "emblem-default-symbolic", "object-select-symbolic"
+	],
+	L("options.update.release.latest"),
+	L("options.update.release.latest.sub"),
+	checkLatest);
 	auto rowLatestPre = makeTagCard(
-		"emblem-important-symbolic",
+		["emblem-important-symbolic"],
 		L("options.update.release.pre"),
 		L("options.update.release.pre.sub"),
 		checkLatestPre);
 	auto rowLatestAll = makeTagCard(
-		"view-more-symbolic",
+		["view-more-symbolic", "open-menu-symbolic"],
 		L("options.update.release.all"),
 		L("options.update.release.all.sub"),
 		checkLatestAll);
 	auto rowSpecific = makeTagCard(
-		"bookmark-new-symbolic",
+		["bookmark-new-symbolic"],
 		L("options.update.release.specific"),
 		L("options.update.release.specific.sub"),
 		checkSpecific);

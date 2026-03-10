@@ -100,21 +100,31 @@ Box buildAddUpdateMethodBox(
 
 	auto githubRowRevealer = makeSlideDownRevealer(ANIM_DURATION_MS);
 	githubRowRevealer.setHalign(Align.Fill);
-	githubRowRevealer.setChild(makeChoiceRowContent("system-software-update",
-			L("addupdate.method.github"), L("addupdate.method.github.subtitle")));
+	githubRowRevealer.setChild(makeChoiceRowContent(
+			[
+			"software-update-available-symbolic",
+			"system-software-update-symbolic"
+		],
+		L("addupdate.method.github"), L("addupdate.method.github.subtitle")));
 	auto gitHubRow = new ListBoxRow;
 	gitHubRow.setChild(githubRowRevealer);
 
 	auto zsyncRowRevealer = makeSlideDownRevealer(ANIM_DURATION_MS);
 	zsyncRowRevealer.setHalign(Align.Fill);
-	zsyncRowRevealer.setChild(makeChoiceRowContent("network-transmit-receive",
-			L("addupdate.method.zsync"), L("addupdate.method.zsync.subtitle")));
+	zsyncRowRevealer.setChild(makeChoiceRowContent(
+			[
+			"emblem-synchronizing-symbolic", "network-transmit-receive-symbolic"
+		],
+		L("addupdate.method.zsync"), L("addupdate.method.zsync.subtitle")));
 	auto zsyncRow = new ListBoxRow;
 	zsyncRow.setChild(zsyncRowRevealer);
 
 	auto plingRowRevealer = makeSlideDownRevealer(ANIM_DURATION_MS);
 	plingRowRevealer.setHalign(Align.Fill);
-	plingRowRevealer.setChild(makeChoiceRowContent("applications-internet",
+	plingRowRevealer.setChild(makeChoiceRowContent(
+			[
+				"web-browser-symbolic", "network-workgroup-symbolic"
+			],
 			L("addupdate.method.pling"), L("addupdate.method.pling.subtitle")));
 	auto plingRow = new ListBoxRow;
 	plingRow.setChild(plingRowRevealer);
@@ -144,7 +154,10 @@ Box buildAddUpdateMethodBox(
 	choosePage.append(chooseTextBox);
 	choosePage.append(choiceList);
 
-	auto inputIcon = Image.newFromIconName("system-software-update");
+	auto inputIcon = makeIcon([
+		"software-update-available-symbolic",
+		"system-software-update-symbolic",
+	]);
 	inputIcon.addCssClass("icon-large");
 	inputIcon.setHalign(Align.Center);
 
@@ -333,7 +346,9 @@ Box buildAddUpdateMethodBox(
 	// Set to true by the HTTP warning Continue button so the next click skips the warning
 	bool httpConfirmed;
 
-	auto successIcon = Image.newFromIconName("emblem-default-symbolic");
+	auto successIcon = makeIcon([
+		"emblem-default-symbolic", "emblem-ok-symbolic", "object-select-symbolic"
+	]);
 	successIcon.addCssClass("icon-large");
 	successIcon.addCssClass("success");
 	successIcon.setHalign(Align.Center);
