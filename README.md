@@ -21,9 +21,13 @@ This application handles all of that for you, making every AppImage behave like 
 
 When you open an AppImage, the installer reads its embedded metadata and shows you the file path, size, last modified date, architecture, and signature status. Once you confirm, the application is placed under `~/.local/share/appimages/` (by default), and a desktop entry and icon are written into the system so that the application appears in your launcher properly and straight away.
 
+![Installer window](media/demo_install.png)
+
 ### The application manager
 
 Opening the application manager shows all your installed AppImages in a searchable list. From here you can launch any application, check for updates, uninstall, or open its settings. The manager also flags problems like missing files, broken launcher entries, or non-executable AppRun files, and offers a way to repair them.
+
+![Application manager](media/demo_manager.png)
 
 ### Updates
 
@@ -31,12 +35,16 @@ If an AppImage includes update information the manager can check for and apply u
 
 An optional background service can also check for updates periodically and send a notification when updates are available.
 
+![Options page](media/demo_options.png)
+
 ### Storage and Optimization
 
 Each installed application can be kept as a single AppImage file or unpacked into its individual files.\
 Keeping the application as a file uses less disk space and works with zsync delta updates. Unpacking it trades those benefits for faster startup time.
 
 You can switch between the two at any time from the application options.
+
+![Optimize storage](media/demo_optimize.png)
 
 ## Install
 
