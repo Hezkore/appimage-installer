@@ -23,6 +23,7 @@ import gtk.spinner : Spinner;
 import gtk.style_context : StyleContext;
 import gtk.types : Align, Orientation, RevealerTransitionType;
 import gtk.widget : Widget;
+import gio.themed_icon : ThemedIcon;
 
 import types : DoneMessage;
 import application : App;
@@ -36,6 +37,17 @@ package(windows) enum int REVEAL_MS = 200; // Short slide or crossfade for banne
 package(windows) enum int CONTENT_REVEAL_DELAY_MS = 250;
 package(windows) enum int ACTION_REVEAL_DELAY_MS = 500;
 package(windows) enum int CARD_STAGGER_MS = 100;
+
+// Tries each name in order so layouts stay intact when an icon isn't in the current theme
+package(windows) Image makeIcon(string[] names) {
+	auto icon = ThemedIcon.newFromNames(names);
+	return Image.newFromGicon(icon);
+}
+
+// Updates an existing Image in place rather than recreating the widget
+package(windows) void setIconNames(Image image, string[] names) {
+	image.setFromGicon(ThemedIcon.newFromNames(names));
+}
 
 // Creates a language selector in the header bar that rebuilds the window on change
 // Each run gets its own stack frame so each closure captures a unique language code
@@ -78,7 +90,12 @@ package(windows) Box makeLangBox(AppWindow win, Popover containerPopover) {
 package MenuButton makeLangButton(AppWindow win) {
 	enum int POPOVER_MARGIN = 4;
 	auto languageMenuButton = new MenuButton;
-	languageMenuButton.setIconName("preferences-desktop-locale-symbolic");
+	auto languageIcon = makeIcon([
+		"preferences-desktop-locale-symbolic",
+		"preferences-desktop-symbolic",
+		"open-menu-symbolic",
+	]);
+	languageMenuButton.setChild(languageIcon);
 	languageMenuButton.addCssClass("flat");
 	languageMenuButton.setValign(Align.Center);
 	languageMenuButton.setTooltipText(langName(activeLangCode()));

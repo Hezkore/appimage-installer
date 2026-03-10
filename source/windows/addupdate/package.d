@@ -23,7 +23,7 @@ import gtk.types : SelectionMode, StackTransitionType;
 import std.file : FileException;
 import std.json : JSONException;
 import std.string : indexOf, startsWith, strip;
-import windows.base : makeSlideDownRevealer, revealAfterDelay, revealWithStagger;
+import windows.base : makeSlideDownRevealer, revealAfterDelay, revealWithStagger, makeIcon;
 import windows.base : ACTION_BTN_WIDTH, ACTION_BTN_HEIGHT, ANIM_DURATION_MS;
 import windows.base : CONTENT_REVEAL_DELAY_MS, ACTION_REVEAL_DELAY_MS, CARD_STAGGER_MS;
 import windows.addupdate.helpers;
@@ -71,7 +71,9 @@ Box buildAddUpdateMethodBox(
 		navStack.setVisibleChildName(page);
 	}
 
-	auto chooseIcon = Image.newFromIconName("software-update-available-symbolic");
+	auto chooseIcon = makeIcon([
+		"software-update-available-symbolic", "system-software-update-symbolic"
+	]);
 	chooseIcon.addCssClass("icon-large");
 	chooseIcon.setHalign(Align.Center);
 
@@ -119,7 +121,8 @@ Box buildAddUpdateMethodBox(
 
 	auto directRowRevealer = makeSlideDownRevealer(ANIM_DURATION_MS);
 	directRowRevealer.setHalign(Align.Fill);
-	directRowRevealer.setChild(makeChoiceRowContent("folder-download-symbolic",
+	directRowRevealer.setChild(makeChoiceRowContent(
+			["folder-download-symbolic", "folder-symbolic"],
 			L("addupdate.method.direct"), L("addupdate.method.direct.subtitle")));
 	auto directRow = new ListBoxRow;
 	directRow.setChild(directRowRevealer);
@@ -270,7 +273,9 @@ Box buildAddUpdateMethodBox(
 	errorPage.append(errorContentRevealer);
 	errorPage.append(errorBackButtonRevealer);
 
-	auto httpIcon = Image.newFromIconName("security-low-symbolic");
+	auto httpIcon = makeIcon([
+		"security-low-symbolic", "dialog-warning-symbolic"
+	]);
 	httpIcon.addCssClass("icon-large");
 	httpIcon.addCssClass("warning");
 	httpIcon.setHalign(Align.Center);

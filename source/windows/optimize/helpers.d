@@ -8,7 +8,7 @@ import gtk.revealer : Revealer;
 import gtk.stack : Stack;
 import gtk.types : Align, Justification, Orientation, RevealerTransitionType, StackTransitionType;
 
-import windows.base : applyCssToWidget, makeSlideDownRevealer, ACTION_BTN_WIDTH, REVEAL_MS;
+import windows.base : applyCssToWidget, makeSlideDownRevealer, makeIcon, ACTION_BTN_WIDTH, REVEAL_MS;
 import constants : APPLICATIONS_SUBDIR, MANIFEST_FILE_NAME;
 import lang : L;
 
@@ -134,7 +134,9 @@ public ResultPageWidgets buildResultPage() {
 	resultPage.append(resultTopSpacer);
 
 	// Icon and label are immediately visible with only the progress bar sliding in
-	auto statusIcon = Image.newFromIconName("emblem-synchronizing-symbolic");
+	auto statusIcon = makeIcon([
+		"emblem-synchronizing-symbolic", "system-run-symbolic"
+	]);
 	statusIcon.addCssClass("icon-large");
 	statusIcon.setHalign(Align.Center);
 	resultPage.append(statusIcon);

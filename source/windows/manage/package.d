@@ -44,7 +44,7 @@ import glib.c.functions : g_free;
 import gobject.value : Value;
 
 import application : App;
-import windows.base : AppWindow, makeBackButton, makeLangBox, REVEAL_MS;
+import windows.base : AppWindow, makeBackButton, makeLangBox, REVEAL_MS, makeIcon;
 import windows.base : CONTENT_REVEAL_DELAY_MS;
 import windows.manage.scan : InstalledApp, scanInstalledApps, buildEmptyBox, isStillInstalled;
 import windows.manage.row : AppRowResult, Layout;
@@ -388,7 +388,10 @@ class ManageWindow : AppWindow {
 
 		auto checkContentBox = new Box(Orientation.Horizontal, ManageLayout.contentRowSpacing);
 		checkContentBox.append(
-			Image.newFromIconName("software-update-available-symbolic"));
+			makeIcon([
+				"software-update-available-symbolic",
+				"system-software-update-symbolic"
+			]));
 		checkContentBox.append(new Label(L("button.check_updates")));
 		this.checkButton = new Button;
 		this.checkButton.setChild(checkContentBox);
@@ -418,7 +421,10 @@ class ManageWindow : AppWindow {
 		installerUpdateInner.setMarginEnd(Layout.rowMargin);
 
 		auto installerIcon =
-			Image.newFromIconName("software-update-available-symbolic");
+			makeIcon([
+				"software-update-available-symbolic",
+				"system-software-update-symbolic"
+			]);
 		installerIcon.setPixelSize(Layout.iconSize);
 		auto installerNameBox =
 			new Box(Orientation.Vertical, Layout.infoSpacing);
@@ -545,7 +551,10 @@ class ManageWindow : AppWindow {
 		updateAllInfoBox.append(updateAllTitleLabel);
 		updateAllInfoBox.append(updateAllCountLabel);
 		auto updateAllIcon =
-			Image.newFromIconName("software-update-available-symbolic");
+			makeIcon([
+				"software-update-available-symbolic",
+				"system-software-update-symbolic"
+			]);
 		updateAllIcon.setPixelSize(Layout.iconSize);
 		updateAllIcon.setValign(Align.Center);
 		auto updateAllInner = new Box(Orientation.Horizontal, Layout.rowSpacing);
@@ -743,8 +752,10 @@ class ManageWindow : AppWindow {
 					auto restoredBox = new Box(Orientation.Horizontal, ManageLayout
 					.contentRowSpacing);
 					restoredBox.append(
-					Image.newFromIconName(
-					"software-update-available-symbolic"));
+					makeIcon([
+						"software-update-available-symbolic",
+						"system-software-update-symbolic"
+					]));
 					restoredBox.append(new Label(L("button.check_updates")));
 					this.checkButton.setChild(restoredBox);
 					this.checkButton.setSensitive(true);

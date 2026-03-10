@@ -278,27 +278,31 @@ class InstallWindow : AppWindow {
 		auto modifiedRow = buildInfoRow("view-calendar-week", L("install.info.modified"), this
 				.appImage.fileModified);
 
-		string sigIcon;
+		string[] signatureIcons;
 		string sigValue;
 		final switch (this.appImage.signatureStatus) {
 		case SignatureStatus.None:
-			sigIcon = "security-low-symbolic";
+			signatureIcons = [
+				"security-low-symbolic", "dialog-warning-symbolic"
+			];
 			sigValue = L("install.info.signature.none");
 			break;
 		case SignatureStatus.Verified:
-			sigIcon = "security-high-symbolic";
+			signatureIcons = ["security-high-symbolic"];
 			sigValue = L("install.info.signature.verified");
 			break;
 		case SignatureStatus.Unverifiable:
-			sigIcon = "security-medium-symbolic";
+			signatureIcons = ["security-medium-symbolic"];
 			sigValue = L("install.info.signature.unverifiable");
 			break;
 		case SignatureStatus.Invalid:
-			sigIcon = "security-low-symbolic";
+			signatureIcons = [
+				"security-low-symbolic", "dialog-warning-symbolic"
+			];
 			sigValue = L("install.info.signature.invalid");
 			break;
 		case SignatureStatus.GpgMissing:
-			sigIcon = "dialog-question-symbolic";
+			signatureIcons = ["dialog-question-symbolic"];
 			sigValue = L("install.info.signature.gpgmissing");
 			break;
 		}
@@ -320,7 +324,7 @@ class InstallWindow : AppWindow {
 			fileInfoList.append(listRow);
 		}
 
-		auto sigRow = buildInfoRow(sigIcon, L("install.info.signature"), sigValue);
+		auto sigRow = buildInfoRow(signatureIcons, L("install.info.signature"), sigValue);
 		if (this.appImage.signatureStatus == SignatureStatus.Invalid) {
 			// Walk icon → textColumn → valueLabel (second child of textColumn)
 			auto textColumn = cast(Box) sigRow.getLastChild();

@@ -17,7 +17,7 @@ import gtk.types : Align, Orientation, RevealerTransitionType, SelectionMode, St
 import pango.types : EllipsizeMode;
 
 import windows.install : InstallWindow;
-import windows.base : ACTION_BTN_WIDTH, ACTION_BTN_HEIGHT;
+import windows.base : ACTION_BTN_WIDTH, ACTION_BTN_HEIGHT, makeIcon;
 import lang : L;
 
 package(windows) enum int INFO_MARGIN = 48;
@@ -37,11 +37,17 @@ private enum Layout {
 	closeButtonMarginTop = 32,
 }
 
-package(windows) Box buildInfoRow(string iconName, string heading, string value,
-	string tooltipText = "") {
+package(windows) Box buildInfoRow(string iconName, string heading,
+	string value, string tooltipText = "") {
+	return buildInfoRow([iconName], heading, value, tooltipText);
+}
+
+// Falls back through names so the row still gets an icon on themes without every icon
+package(windows) Box buildInfoRow(string[] iconNames, string heading,
+	string value, string tooltipText = "") {
 	auto row = new Box(Orientation.Horizontal, Layout.rowSpacing);
 
-	auto icon = Image.newFromIconName(iconName);
+	auto icon = makeIcon(iconNames);
 	icon.pixelSize = Layout.iconSize;
 	icon.setMarginStart(Layout.cellEndMargin);
 	icon.setValign(Align.Center);
