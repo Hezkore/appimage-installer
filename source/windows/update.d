@@ -29,7 +29,7 @@ import gtk.types : SelectionMode, StackTransitionType;
 import gtk.window : Window;
 
 import application : App;
-import windows.base : AppWindow, makeSlideDownRevealer, makeBackButton, revealAfterDelay;
+import windows.base : AppWindow, makeSlideDownRevealer, makeBackButton, revealAfterDelay, makeIcon;
 import windows.base : ACTION_BTN_WIDTH, ACTION_BTN_HEIGHT, ANIM_DURATION_MS;
 import windows.base : CONTENT_REVEAL_DELAY_MS, ACTION_REVEAL_DELAY_MS;
 import windows.addupdate : buildAddUpdateMethodBox;
@@ -112,12 +112,16 @@ package Box buildUpdateBox(
 	string installedVersion = "",
 	void delegate() onAddUpdateMethod = null,
 	void delegate() onForceUpdate = null) {
-	string iconName, title, description;
+	string[] iconNames;
+	string title, description;
 	bool isUpToDate = false;
 	Button actionButton;
 
 	if (!updateInfo.length) {
-		iconName = "software-update-available-symbolic";
+		iconNames = [
+			"software-update-available-symbolic",
+			"system-software-update-symbolic",
+		];
 		title = L("update.title.no_method");
 		description = L("update.no_method.description");
 
@@ -132,7 +136,7 @@ package Box buildUpdateBox(
 				writeln("UpdateWindow: 'Add Update Method' not yet implemented.");
 		});
 	} else if (parseUpdateMethodKind(updateInfo) == UpdateMethodKind.Unknown) {
-		iconName = "dialog-warning-symbolic";
+		iconNames = ["dialog-warning-symbolic"];
 		title = L("update.title.unknown_method");
 		string methodPrefix = updateInfo.split("|")[0];
 		description = L("update.unknown_method.description", methodPrefix);
@@ -144,11 +148,14 @@ package Box buildUpdateBox(
 				onAddUpdateMethod();
 		});
 	} else if (updateCheckError.length) {
-		iconName = "dialog-warning-symbolic";
+		iconNames = ["dialog-warning-symbolic"];
 		title = L("update.title.check_failed");
 		description = L("update.failed.description", updateCheckError);
 	} else if (updateAvailable) {
-		iconName = "software-update-available-symbolic";
+		iconNames = [
+			"software-update-available-symbolic",
+			"system-software-update-symbolic",
+		];
 		title = L("update.title.available");
 		description = L("update.available.description", appName);
 
@@ -161,7 +168,7 @@ package Box buildUpdateBox(
 			writeln("UpdateWindow: 'Update Now' not yet implemented.");
 		});
 	} else {
-		iconName = "emblem-ok-symbolic";
+		iconNames = ["emblem-ok-symbolic"];
 		title = L("update.title.up_to_date");
 		description = installedVersion.length
 			? L("update.up_to_date.description.versioned",
@@ -175,7 +182,7 @@ package Box buildUpdateBox(
 		}
 	}
 
-	auto iconImage = Image.newFromIconName(iconName);
+	auto iconImage = makeIcon(iconNames);
 	iconImage.addCssClass("icon-large");
 	if (isUpToDate)
 		iconImage.addCssClass("success");
@@ -260,8 +267,10 @@ private void buildUpdateFlow(
 	bool skipAvailState = false) {
 
 	// Icon area uses SlideDown to swap between available, spinner and result states
-	auto availIconImg = Image.newFromIconName(
-		"software-update-available-symbolic");
+	auto availIconImg = makeIcon([
+		"software-update-available-symbolic",
+		"system-software-update-symbolic",
+	]);
 	availIconImg.addCssClass("icon-large");
 
 	auto spinner = new Spinner;

@@ -15,6 +15,7 @@ import gtk.types : Align, Orientation;
 
 import windows.base : revealAfterDelay;
 import windows.base : CONTENT_REVEAL_DELAY_MS, ACTION_REVEAL_DELAY_MS;
+import windows.base : makeIcon, setIconNames;
 import constants : APPLICATIONS_SUBDIR, MANIFEST_FILE_NAME;
 import appimage.manifest : Manifest;
 import apputils : xdgDataHome, installBaseDir;
@@ -152,7 +153,12 @@ public void saveUpdateInfo(string sanitizedName, string updateInfo) {
 
 // Builds one activatable row in the method choice list
 public Box makeChoiceRowContent(string iconName, string name, string subtitle) {
-	auto icon = Image.newFromIconName(iconName);
+	return makeChoiceRowContent([iconName], name, subtitle);
+}
+
+// Falls back through names so the row still gets an icon on themes without every icon
+public Box makeChoiceRowContent(string[] iconNames, string name, string subtitle) {
+	auto icon = makeIcon(iconNames);
 	icon.pixelSize = Layout.iconSize;
 	icon.setValign(Align.Center);
 	icon.setMarginEnd(Layout.iconMarginEnd);
@@ -249,7 +255,7 @@ public void setupInputPage(
 		break;
 
 	case MethodKind.DirectLink:
-		inputIcon.setFromIconName("folder-download-symbolic");
+		setIconNames(inputIcon, ["folder-download-symbolic", "folder-symbolic"]);
 		inputTitleLabel.setLabel(L("addupdate.method.direct"));
 		inputDescriptionLabel.setLabel(L("addupdate.direct.description"));
 		inputExampleLabel.setLabel(L("addupdate.direct.example"));
