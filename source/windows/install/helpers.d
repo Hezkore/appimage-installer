@@ -1,5 +1,7 @@
 module windows.install.helpers;
 
+import std.path : buildPath;
+import std.process : ProcessException;
 import std.stdio : writeln;
 
 import glib.global : timeoutAdd;
@@ -18,6 +20,8 @@ import pango.types : EllipsizeMode;
 
 import windows.install : InstallWindow;
 import windows.base : ACTION_BTN_WIDTH, ACTION_BTN_HEIGHT, makeIcon;
+import appimage.install : launchInstalledApp;
+import types : InstallMethod;
 import lang : L;
 
 package(windows) enum int INFO_MARGIN = 48;
@@ -116,15 +120,31 @@ package(windows) void doInstallationComplete(InstallWindow installWindow) {
 	detailsPage.setMarginEnd(INFO_MARGIN);
 	detailsPage.append(detailsList);
 
-	auto closeButton = Button.newWithLabel(L("button.close"));
-	closeButton.setSizeRequest(ACTION_BTN_WIDTH, ACTION_BTN_HEIGHT);
-	closeButton.setMarginTop(Layout.closeButtonMarginTop);
-	closeButton.setHalign(Align.Center);
-	closeButton.addCssClass("pill");
-	closeButton.connectClicked({
+	auto launchButton = Button.newWithLabel(L("button.launch"));
+	launchButton.setSizeRequest(ACTION_BTN_WIDTH, ACTION_BTN_HEIGHT);
+	launchButton.addCssClass("pill");
+	launchButton.addCssClass("suggested-action");
+
+	launchButton.connectClicked({
 		installWindow.actionRevealer.setRevealChild(false);
 		installWindow.bannerRevealer.setRevealChild(false);
 		timeoutAdd(PRIORITY_DEFAULT, ACTION_TRANSITION_MS, {
+			string launchPath = buildPath(
+			installWindow.appImage.installedAppDirectory,
+			installWindow.appImage.sanitizedName ~ ".AppImage");
+			if (installWindow.appImage.installMethod == InstallMethod.Extracted)
+				launchPath = buildPath(
+				installWindow.appImage.installedAppDirectory,
+				"AppRun");
+			try {
+				launchInstalledApp(launchPath,
+				installWindow.appImage.installedAppDirectory,
+				installWindow.appImage.installMethod,
+				installWindow.appImage.portableHome,
+				installWindow.appImage.portableConfig);
+			} catch (ProcessException error) {
+				writeln("launch: failed: ", error.msg);
+			}
 			if (installWindow.onCloseCallback !is null)
 				installWindow.onCloseCallback();
 			else
@@ -133,7 +153,9 @@ package(windows) void doInstallationComplete(InstallWindow installWindow) {
 		});
 	});
 
-	installWindow.actionStack.addTitled(closeButton, "done", "Done");
+	launchButton.setHalign(Align.Center);
+	launchButton.setMarginTop(Layout.closeButtonMarginTop);
+	installWindow.actionStack.addTitled(launchButton, "done", "Done");
 
 	installWindow.installProgressBar.setFraction(1.0);
 
