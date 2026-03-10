@@ -435,7 +435,7 @@ class InstallWindow : AppWindow {
 		overlay.setVexpand(true);
 		overlay.setChild(this.mainLayout);
 		overlay.addOverlay(this.bannerRevealer);
-		this.setChild(overlay);
+		this.toolbarView.setContent(overlay);
 
 		timeoutAdd(PRIORITY_DEFAULT, BANNER_DELAY_MS, {
 			this.bannerRevealer.setRevealChild(true);

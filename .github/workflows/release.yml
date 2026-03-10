@@ -104,7 +104,7 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get update -y
-          sudo apt-get install -y --no-install-recommends libgtk-4-dev
+          sudo apt-get install -y --no-install-recommends libgtk-4-dev libadwaita-1-dev
 
       - name: Set up D
         uses: dlang-community/setup-dlang@0a7469b93f791d83f30932c6fd105796c6966e20 # v2.0.0 (latest)
