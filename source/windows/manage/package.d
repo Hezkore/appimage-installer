@@ -773,6 +773,7 @@ class ManageWindow : AppWindow {
 		GestureClick[] clicks;
 		ListBoxRow[] toggleRows;
 		Image[] chevrons;
+		Box[] mainRows;
 		foreach (ref rowResult; results) {
 			if (rowResult.revealer is null)
 				continue;
@@ -781,6 +782,7 @@ class ManageWindow : AppWindow {
 			clicks ~= rowResult.click;
 			toggleRows ~= rowResult.row;
 			chevrons ~= rowResult.chevron;
+			mainRows ~= rowResult.mainRow;
 		}
 		foreach (clickIndex; 0 .. clicks.length)
 			bindToggleClick(
@@ -789,8 +791,8 @@ class ManageWindow : AppWindow {
 				revealers,
 				highlights,
 				toggleRows,
-				chevrons);
-
+				chevrons,
+				mainRows[clickIndex]);
 		foreach (clickIndex; 0 .. clicks.length)
 			clicks[clickIndex].connectPressed(
 				(int pressCount, double xCoordinate,

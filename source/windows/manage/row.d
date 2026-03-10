@@ -91,6 +91,7 @@ private enum int LAUNCH_CRASH_CHECK_DELAY_SECONDS = 5;
 package struct AppRowResult {
 	ListBoxRow row;
 	Box outer;
+	Box mainRow;
 	Box infoColumn;
 	Box iconSlot;
 	Spinner spinner;
@@ -134,20 +135,20 @@ package void delegate() makeToggleCallback(
 	};
 }
 
-// Binds the row toggle click, static so each rowIndex is captured by value not by closure reference
-// The gesture covers the full row but clicks inside the open revealer at the bottom are ignored
+// Binds the row toggle click, blocking it for anything below the header
+// Margins are included in the threshold so all four edges stay clickable
 package void bindToggleClick(
 	GestureClick click, size_t rowIndex, Revealer[] revealers,
 	CssProvider[] highlights,
-	ListBoxRow[] rows, Image[] chevrons) {
+	ListBoxRow[] rows, Image[] chevrons, Box mainRow) {
 	auto toggleCallback = makeToggleCallback(
 		rowIndex, revealers, highlights, rows, chevrons);
 	click.connectPressed(
 		(int pressCount, double xCoordinate,
 			double yCoordinate, GestureClick gesture) {
-		int revH = revealers[rowIndex].getAllocatedHeight();
-		if (revH > 0 && revealers[rowIndex].getRevealChild()
-		&& yCoordinate > rows[rowIndex].getAllocatedHeight() - revH)
+		immutable headerHeight = Layout.rowMargin * 2
+			+ mainRow.getAllocatedHeight();
+		if (yCoordinate > headerHeight)
 			return;
 		toggleCallback();
 	});
@@ -256,7 +257,7 @@ package AppRowResult buildAppRow(ManageWindow win, ref InstalledApp entry) {
 			iconSlot.append(newIcon);
 		};
 		return AppRowResult(
-			row, outer, infoColumn, iconSlot, spinner, null, null, null, null, null,
+			row, outer, null, infoColumn, iconSlot, spinner, null, null, null, null, null,
 			null, null, entry, reloadRow);
 	}
 
@@ -994,10 +995,9 @@ package AppRowResult buildAppRow(ManageWindow win, ref InstalledApp entry) {
 	outer.append(revealer);
 
 	auto click = new GestureClick;
-	outer.addController(click);
-
+	row.addController(click);
 	return AppRowResult(
-		row, outer, infoColumn, iconSlot, spinner,
+		row, outer, mainRow, infoColumn, iconSlot, spinner,
 		revealer, highlightProvider, click, chevron, updateLabel,
 		rowProgressBar, rowStatusLabel, entry, reloadRow);
 }
