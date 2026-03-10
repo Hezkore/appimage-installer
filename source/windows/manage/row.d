@@ -34,7 +34,7 @@ import windows.update : buildUpdateBox, buildCheckingBox,
 	buildDirectLinkUpdateFlow, buildZsyncUpdateFlow, buildGitHubZsyncUpdateFlow,
 	buildGitHubReleaseUpdateFlow, buildGitHubLinuxManifestUpdateFlow,
 	buildPlingUpdateFlow;
-import update.common : parseUpdateMethodKind, UpdateMethodKind;
+import update.common : parseUpdateMethodKind, UpdateMethodKind, reapplyAppIntegration;
 import update.directlink : extractDirectLinkUrl;
 import update.zsync : extractZsyncUrl, checkZsyncForUpdate;
 import update.githubzsync : checkGitHubZsyncForUpdate;
@@ -46,8 +46,9 @@ import windows.cleanup : buildCleanupBox;
 import windows.addupdate : buildAddUpdateMethodBox;
 import windows.optimize : buildOptimizeBox;
 import windows.options : buildOptionsBox;
+import appimage : AppImage;
 import appimage.manifest : Manifest;
-import appimage.install : portableHomeDir, portableConfigDir;
+import appimage.install : portableHomeDir, portableConfigDir, writeDesktopFile;
 import appimage.icon : reinstallIconFromExtractedDir, reinstallIconFromAppImageFile;
 import constants : CSS_PRIORITY_USER, APPLICATIONS_SUBDIR, DESKTOP_SUFFIX,
 	APPIMAGE_EXEC_MODE;
@@ -329,35 +330,107 @@ package AppRowResult buildAppRow(ManageWindow win, ref InstalledApp entry) {
 
 		if (issue == L("manage.issue.desktop_broken")) {
 			auto fixButton = Button.newWithLabel(L("button.fix"));
-			fixButton.setSizeRequest(Layout.fixButtonWidth, Layout.fixButtonHeight);
+			fixButton.setSizeRequest(
+				Layout.fixButtonWidth, Layout.fixButtonHeight);
 			fixButton.addCssClass("pill");
 			Box capturedIssueRow = issueRow;
 			string capturedFixDir = entry.appDirectory;
 			string capturedFixSanitized = entry.sanitizedName;
 			string capturedFixSymlink = entry.desktopSymlink;
+			InstallMethod capturedFixMethod = entry.installMethod;
 			fixButton.connectClicked(() {
+				// AppImage sits alongside the app dir; for
+				// Extracted it was moved into the metadata dir
+				string appImagePath = (capturedFixMethod
+					== InstallMethod.Extracted)
+					? buildPath(capturedFixDir,
+						APPLICATIONS_SUBDIR,
+						capturedFixSanitized ~ ".AppImage") : buildPath(capturedFixDir,
+						capturedFixSanitized ~ ".AppImage");
 				string desktopInAppDir = buildPath(
-					capturedFixDir, APPLICATIONS_SUBDIR, capturedFixSanitized ~ DESKTOP_SUFFIX);
+					capturedFixDir, APPLICATIONS_SUBDIR,
+					capturedFixSanitized ~ DESKTOP_SUFFIX);
+				if (exists(appImagePath)) {
+					reapplyAppIntegration(
+						appImagePath,
+						capturedFixDir,
+						capturedFixSanitized);
+				} else if (capturedFixMethod == InstallMethod.Extracted) {
+					// AppImage is gone but the extracted dir may still be here
+					// Generate a minimal desktop file from what the manifest knows
+					string appRunPath = buildPath(capturedFixDir, "AppRun");
+					if (!exists(appRunPath)) {
+						writeln("fix: AppRun not found: ", appRunPath);
+						return;
+					}
+					auto loadedManifest = Manifest.loadFromAppDir(
+						capturedFixDir);
+					auto syntheticApp = new AppImage("");
+					syntheticApp.sanitizedName = capturedFixSanitized;
+					syntheticApp.installMethod = InstallMethod.Extracted;
+					if (loadedManifest !is null) {
+						syntheticApp.appName =
+							loadedManifest.appName.length
+							? loadedManifest.appName : capturedFixSanitized;
+						syntheticApp.installedIconName =
+							loadedManifest.installedIconName;
+						syntheticApp.portableHome =
+							loadedManifest.portableHome;
+						syntheticApp.portableConfig =
+							loadedManifest.portableConfig;
+					} else {
+						syntheticApp.appName = capturedFixSanitized;
+					}
+					syntheticApp.desktopFileLines = [
+						"[Desktop Entry]",
+						"Type=Application",
+						"Name=" ~ syntheticApp.appName,
+						"Exec=" ~ appRunPath,
+						"Icon=" ~ syntheticApp.installedIconName,
+						"Terminal=false",
+						"Categories=Utility;",
+					];
+					try {
+						mkdirRecurse(buildPath(
+							capturedFixDir, APPLICATIONS_SUBDIR));
+					} catch (FileException) {
+					}
+					writeDesktopFile(
+						syntheticApp, desktopInAppDir,
+						capturedFixDir, appRunPath);
+				} else {
+					writeln("fix: AppImage not found: ", appImagePath);
+					return;
+				}
 				if (!exists(desktopInAppDir)) {
-					writeln("fix: desktop file not found in app directory: ", desktopInAppDir);
+					writeln("fix: desktop still missing after reapply: ",
+						desktopInAppDir);
 					return;
 				}
 				try {
-					string symlinkDir = dirName(capturedFixSymlink);
+					string symlinkDir = dirName(
+						capturedFixSymlink);
 					mkdirRecurse(symlinkDir);
 					try {
 						remove(capturedFixSymlink);
 					} catch (FileException) {
 					}
-					symlink(desktopInAppDir, capturedFixSymlink);
-					writeln("fix: symlink recreated: ", capturedFixSymlink);
+					symlink(desktopInAppDir,
+						capturedFixSymlink);
+					writeln("fix: symlink recreated: ",
+						capturedFixSymlink);
 					try {
-						spawnProcess(["update-desktop-database", symlinkDir]);
+						spawnProcess([
+								"update-desktop-database",
+								symlinkDir
+							]);
 					} catch (ProcessException) {
 					}
 					capturedIssueRow.setVisible(false);
 				} catch (FileException error) {
-					writeln("fix: failed to recreate symlink: ", error.msg);
+					writeln(
+						"fix: failed to recreate symlink: ",
+						error.msg);
 				}
 			});
 			issueRow.append(fixButton);
