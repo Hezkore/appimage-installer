@@ -416,7 +416,6 @@ Box buildOptionsBox(
 	portableHomeSwitch.setValign(Align.Center);
 	auto portableHomeRowBox = new Box(Orientation.Horizontal, Layout.rowSpacing);
 	portableHomeRowBox.setMarginTop(Layout.rowPadding);
-	portableHomeRowBox.setMarginBottom(Layout.rowPadding);
 	portableHomeRowBox.setMarginStart(Layout.rowSideMargin);
 	portableHomeRowBox.setMarginEnd(Layout.rowSideMargin);
 	auto portableHomeLabel = new Label(L("options.portable.home.title"));
@@ -429,16 +428,26 @@ Box buildOptionsBox(
 	browseHomeButton.setValign(Align.Center);
 	portableHomeRowBox.append(browseHomeButton);
 	portableHomeRowBox.append(portableHomeSwitch);
+	auto portableHomeNote = new Label(L("options.portable.home.note"));
+	portableHomeNote.addCssClass("caption");
+	portableHomeNote.addCssClass("dim-label");
+	portableHomeNote.setHalign(Align.Start);
+	portableHomeNote.setWrap(true);
+	portableHomeNote.setMarginBottom(Layout.rowPadding);
+	portableHomeNote.setMarginStart(Layout.rowSideMargin);
+	portableHomeNote.setMarginEnd(Layout.rowSideMargin);
+	auto portableHomeColumn = new Box(Orientation.Vertical, 0);
+	portableHomeColumn.append(portableHomeRowBox);
+	portableHomeColumn.append(portableHomeNote);
 	auto portableHomeRow = new ListBoxRow;
 	portableHomeRow.setActivatable(false);
-	portableHomeRow.setChild(portableHomeRowBox);
+	portableHomeRow.setChild(portableHomeColumn);
 	portableList.append(portableHomeRow);
 
 	auto portableConfigSwitch = new Switch;
 	portableConfigSwitch.setValign(Align.Center);
 	auto portableConfigRowBox = new Box(Orientation.Horizontal, Layout.rowSpacing);
 	portableConfigRowBox.setMarginTop(Layout.rowPadding);
-	portableConfigRowBox.setMarginBottom(Layout.rowPadding);
 	portableConfigRowBox.setMarginStart(Layout.rowSideMargin);
 	portableConfigRowBox.setMarginEnd(Layout.rowSideMargin);
 	auto portableConfigLabel = new Label(L("options.portable.config.title"));
@@ -451,27 +460,22 @@ Box buildOptionsBox(
 	browseConfigButton.setValign(Align.Center);
 	portableConfigRowBox.append(browseConfigButton);
 	portableConfigRowBox.append(portableConfigSwitch);
-	auto portableConfigRow = new ListBoxRow;
-	portableConfigRow.setActivatable(false);
-	portableConfigRow.setChild(portableConfigRowBox);
-	portableList.append(portableConfigRow);
-	settingsBox.append(portableList);
-
-	auto portableHomeNote = new Label(L("options.portable.home.note"));
-	portableHomeNote.addCssClass("caption");
-	portableHomeNote.addCssClass("dim-label");
-	portableHomeNote.setHalign(Align.Start);
-	portableHomeNote.setWrap(true);
-	portableHomeNote.setMarginStart(Layout.rowSideMargin);
-	settingsBox.append(portableHomeNote);
-
 	auto portableConfigNote = new Label(L("options.portable.config.note"));
 	portableConfigNote.addCssClass("caption");
 	portableConfigNote.addCssClass("dim-label");
 	portableConfigNote.setHalign(Align.Start);
 	portableConfigNote.setWrap(true);
+	portableConfigNote.setMarginBottom(Layout.rowPadding);
 	portableConfigNote.setMarginStart(Layout.rowSideMargin);
-	settingsBox.append(portableConfigNote);
+	portableConfigNote.setMarginEnd(Layout.rowSideMargin);
+	auto portableConfigColumn = new Box(Orientation.Vertical, 0);
+	portableConfigColumn.append(portableConfigRowBox);
+	portableConfigColumn.append(portableConfigNote);
+	auto portableConfigRow = new ListBoxRow;
+	portableConfigRow.setActivatable(false);
+	portableConfigRow.setChild(portableConfigColumn);
+	portableList.append(portableConfigRow);
+	settingsBox.append(portableList);
 
 	auto saveButton = Button.newWithLabel(L("button.save"));
 	saveButton.setSizeRequest(Layout.saveButtonWidth, Layout.saveButtonHeight);

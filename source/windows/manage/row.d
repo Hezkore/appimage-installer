@@ -72,7 +72,6 @@ package enum Layout {
 	warningIconSize = 16,
 	fixButtonWidth = 64,
 	fixButtonHeight = 26,
-	actionsSpacing = 8,
 	actionsMarginTop = 8,
 }
 
@@ -512,7 +511,8 @@ package AppRowResult buildAppRow(ManageWindow win, ref InstalledApp entry) {
 	revealer.setRevealChild(false);
 	revealer.setHexpand(true);
 
-	auto actionsBox = new Box(Orientation.Horizontal, Layout.actionsSpacing);
+	auto actionsBox = new Box(Orientation.Horizontal, 0);
+	actionsBox.addCssClass("linked");
 	actionsBox.setHalign(Align.Center);
 	actionsBox.setMarginTop(Layout.actionsMarginTop);
 	actionsBox.setMarginBottom(Layout.rowMargin);
@@ -569,7 +569,6 @@ package AppRowResult buildAppRow(ManageWindow win, ref InstalledApp entry) {
 
 	auto launchButton = Button.newWithLabel(L("button.launch"));
 	launchButton.setSizeRequest(Layout.buttonWidth, Layout.buttonHeight);
-	launchButton.addCssClass("pill");
 	launchButton.connectClicked(() {
 		rowStatusLabel.hide();
 		rowStatusLabel.removeCssClass("warning");
@@ -616,7 +615,6 @@ package AppRowResult buildAppRow(ManageWindow win, ref InstalledApp entry) {
 
 	auto browseButton = Button.newWithLabel(L("button.browse"));
 	browseButton.setSizeRequest(Layout.buttonWidth, Layout.buttonHeight);
-	browseButton.addCssClass("pill");
 	browseButton.connectClicked(() {
 		rowStatusLabel.hide();
 		rowStatusLabel.removeCssClass("warning");
@@ -635,7 +633,6 @@ package AppRowResult buildAppRow(ManageWindow win, ref InstalledApp entry) {
 
 	auto optimizeButton = Button.newWithLabel(L("button.optimize"));
 	optimizeButton.setSizeRequest(Layout.buttonWidth, Layout.buttonHeight);
-	optimizeButton.addCssClass("pill");
 	optimizeButton.connectClicked(() {
 		rowStatusLabel.hide();
 		rowStatusLabel.removeCssClass("warning");
@@ -677,7 +674,6 @@ package AppRowResult buildAppRow(ManageWindow win, ref InstalledApp entry) {
 
 	auto optionsButton = Button.newWithLabel(L("button.options"));
 	optionsButton.setSizeRequest(Layout.buttonWidth, Layout.buttonHeight);
-	optionsButton.addCssClass("pill");
 	optionsButton.connectClicked(() {
 		rowStatusLabel.hide();
 		rowStatusLabel.removeCssClass("warning");
@@ -715,7 +711,6 @@ package AppRowResult buildAppRow(ManageWindow win, ref InstalledApp entry) {
 
 	auto updateButton = Button.newWithLabel(L("button.update"));
 	updateButton.setSizeRequest(Layout.buttonWidth, Layout.buttonHeight);
-	updateButton.addCssClass("pill");
 	updateButton.connectClicked(() {
 		rowStatusLabel.hide();
 		rowStatusLabel.removeCssClass("warning");
@@ -1002,7 +997,6 @@ package AppRowResult buildAppRow(ManageWindow win, ref InstalledApp entry) {
 	auto uninstallButton = Button.newWithLabel(L("button.uninstall"));
 	uninstallButton.setSizeRequest(Layout.buttonWidth, Layout.buttonHeight);
 	uninstallButton.addCssClass("destructive-action");
-	uninstallButton.addCssClass("pill");
 	uninstallButton.connectClicked(() {
 		rowStatusLabel.hide();
 		rowStatusLabel.removeCssClass("warning");
