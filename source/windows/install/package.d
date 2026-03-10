@@ -37,7 +37,7 @@ import gobject.object : ObjectWrap;
 import std.typecons : Yes, No;
 
 import windows.install.helpers;
-import windows.base : AppWindow, ACTION_BTN_WIDTH, ACTION_BTN_HEIGHT, REVEAL_MS, makeLangButton;
+import windows.base : AppWindow, ACTION_BTN_WIDTH, ACTION_BTN_HEIGHT, REVEAL_MS, makeLangButton, makeIcon;
 import windows.base : CONTENT_REVEAL_DELAY_MS, ACTION_REVEAL_DELAY_MS;
 import application : App;
 import appimage : AppImage;
@@ -192,8 +192,10 @@ class InstallWindow : AppWindow {
 		this.iconStack.setTransitionDuration(SLIDE_TRANSITION_MS);
 		this.iconStack.setHalign(Align.Center);
 
-		this.genericIconImage = Image.newFromIconName(
-			this.appImage.defaultIconName);
+		this.genericIconImage = makeIcon([
+			this.appImage.defaultIconName,
+			"application-x-executable",
+		]);
 		this.genericIconImage.pixelSize = VERIFY_ICON_SIZE;
 		this.iconStack.addTitled(this.genericIconImage, "generic", "Generic");
 		this.iconStack.setVisibleChildName("generic");
@@ -272,11 +274,23 @@ class InstallWindow : AppWindow {
 		this.mainLayout.append(this.contentStack);
 
 		// File metadata rows
-		auto pathRow = buildInfoRow("folder-home", L("install.info.path"),
-			this.appImage.filePath, this.appImage.filePath);
-		auto sizeRow = buildInfoRow("drive", L("install.info.size"), this.appImage.fileSize);
-		auto modifiedRow = buildInfoRow("view-calendar-week", L("install.info.modified"), this
-				.appImage.fileModified);
+		auto pathRow = buildInfoRow(
+			[
+			"folder-home", "folder-home-symbolic", "user-home-symbolic",
+			"folder-symbolic"
+		],
+		L("install.info.path"),
+		this.appImage.filePath, this.appImage.filePath);
+		auto sizeRow = buildInfoRow(
+			["drive", "drive-harddisk-symbolic", "media-removable-symbolic"],
+			L("install.info.size"), this.appImage.fileSize);
+		auto modifiedRow = buildInfoRow(
+			[
+			"view-calendar-week", "document-edit-symbolic",
+			"document-properties-symbolic"
+		],
+		L("install.info.modified"), this
+			.appImage.fileModified);
 
 		string[] signatureIcons;
 		string sigValue;
@@ -350,9 +364,12 @@ class InstallWindow : AppWindow {
 			string displayKey = keyId.length > 0
 				? keyId : L("install.info.signature.detail.unknown");
 			auto keyRowContent = buildInfoRow(
-				"fingerprint-symbolic",
-				L("install.info.signature.detail.keyid"),
-				displayKey);
+				[
+				"fingerprint-symbolic", "dialog-password-symbolic",
+				"security-high-symbolic"
+			],
+			L("install.info.signature.detail.keyid"),
+			displayKey);
 			if (keyId.length > 0) {
 				keyRowContent.setTooltipText(
 					L("install.info.signature.detail.copy.tooltip"));
@@ -418,7 +435,7 @@ class InstallWindow : AppWindow {
 		overlay.setVexpand(true);
 		overlay.setChild(this.mainLayout);
 		overlay.addOverlay(this.bannerRevealer);
-		this.setChild(overlay);
+		this.toolbarView.setContent(overlay);
 
 		timeoutAdd(PRIORITY_DEFAULT, BANNER_DELAY_MS, {
 			this.bannerRevealer.setRevealChild(true);

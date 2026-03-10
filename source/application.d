@@ -5,7 +5,7 @@ module application;
 import std.concurrency : Tid, thisTid;
 
 import gio.types : ApplicationFlags;
-import gtk.application : Application;
+import adw.application : Application;
 
 import styles : applyGlobalStyles;
 import args : AppArgs, parseArgs;

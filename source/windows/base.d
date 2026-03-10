@@ -8,12 +8,13 @@ import core.thread : Thread;
 
 import glib.global : idleAdd, timeoutAdd;
 import glib.types : PRIORITY_DEFAULT;
-import gtk.application_window : ApplicationWindow;
+import adw.application_window : ApplicationWindow;
+import adw.header_bar : HeaderBar;
+import adw.toolbar_view : ToolbarView;
 import gtk.box : Box;
 import gtk.button : Button;
 import gtk.center_box : CenterBox;
 import gtk.css_provider : CssProvider;
-import gtk.header_bar : HeaderBar;
 import gtk.image : Image;
 import gtk.label : Label;
 import gtk.menu_button : MenuButton;
@@ -178,6 +179,7 @@ abstract class AppWindow : ApplicationWindow {
 
 	App app;
 	HeaderBar headerBar;
+	ToolbarView toolbarView;
 	CenterBox loadingBox;
 	Spinner loadingSpinner;
 
@@ -238,10 +240,12 @@ abstract class AppWindow : ApplicationWindow {
 		this.setResizable(false);
 
 		this.headerBar = new HeaderBar;
-		this.setTitlebar(this.headerBar);
+		this.toolbarView = new ToolbarView;
+		this.toolbarView.addTopBar(this.headerBar);
 
 		this.loadingBox = new CenterBox;
-		this.setChild(this.loadingBox);
+		this.toolbarView.setContent(this.loadingBox);
+		this.setContent(this.toolbarView);
 
 		this.loadingSpinner = new Spinner;
 		this.loadingSpinner.setSizeRequest(SPINNER_SIZE, SPINNER_SIZE);
@@ -266,7 +270,9 @@ abstract class AppWindow : ApplicationWindow {
 	// Resets the header bar and rebuilds all UI using the current language
 	protected void reloadWindow() {
 		this.headerBar = new HeaderBar;
-		this.setTitlebar(this.headerBar);
+		this.toolbarView = new ToolbarView;
+		this.toolbarView.addTopBar(this.headerBar);
+		this.setContent(this.toolbarView);
 		showWindow();
 	}
 

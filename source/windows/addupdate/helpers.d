@@ -210,7 +210,10 @@ public void setupInputPage(
 
 	final switch (kind) {
 	case MethodKind.GitHubZsync:
-		inputIcon.setFromIconName("system-software-update");
+		setIconNames(inputIcon, [
+				"software-update-available-symbolic",
+				"system-software-update-symbolic",
+			]);
 		inputTitleLabel.setLabel(L("addupdate.method.github"));
 		inputDescriptionLabel.setLabel(L("addupdate.github.description"));
 		inputExampleLabel.setLabel(L("addupdate.github.example"));
@@ -219,7 +222,10 @@ public void setupInputPage(
 		break;
 
 	case MethodKind.GitHubRelease:
-		inputIcon.setFromIconName("system-software-update");
+		setIconNames(inputIcon, [
+				"software-update-available-symbolic",
+				"system-software-update-symbolic",
+			]);
 		inputTitleLabel.setLabel(L("addupdate.method.github"));
 		inputDescriptionLabel.setLabel(L("addupdate.ghrelease.pattern.description"));
 		inputExampleLabel.setLabel(L("addupdate.ghrelease.pattern.example"));
@@ -228,7 +234,10 @@ public void setupInputPage(
 		break;
 
 	case MethodKind.GitHubLinuxManifest:
-		inputIcon.setFromIconName("system-software-update");
+		setIconNames(inputIcon, [
+				"software-update-available-symbolic",
+				"system-software-update-symbolic",
+			]);
 		inputTitleLabel.setLabel(L("addupdate.method.github"));
 		inputDescriptionLabel.setLabel(L("addupdate.github.description"));
 		inputExampleLabel.setLabel(L("addupdate.github.example"));
@@ -237,7 +246,10 @@ public void setupInputPage(
 		break;
 
 	case MethodKind.Zsync:
-		inputIcon.setFromIconName("network-transmit-receive");
+		setIconNames(inputIcon, [
+				"emblem-synchronizing-symbolic",
+				"network-transmit-receive-symbolic",
+			]);
 		inputTitleLabel.setLabel(L("addupdate.method.zsync"));
 		inputDescriptionLabel.setLabel(L("addupdate.zsync.description"));
 		inputExampleLabel.setLabel(L("addupdate.zsync.example"));
@@ -246,7 +258,10 @@ public void setupInputPage(
 		break;
 
 	case MethodKind.Pling:
-		inputIcon.setFromIconName("applications-internet");
+		setIconNames(inputIcon, [
+				"web-browser-symbolic",
+				"network-workgroup-symbolic",
+			]);
 		inputTitleLabel.setLabel(L("addupdate.method.pling"));
 		inputDescriptionLabel.setLabel(L("addupdate.pling.description"));
 		inputExampleLabel.setLabel(L("addupdate.pling.example"));

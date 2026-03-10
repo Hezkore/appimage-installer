@@ -65,7 +65,7 @@ package void silentlyHideRow(ManageWindow win, size_t rowIndex) {
 	timeoutAdd(PRIORITY_DEFAULT, REVEALER_FADE_MS, {
 		rowResult.row.hide();
 		if (!hasAnyActiveApps(win))
-			win.setChild(win.emptyStateBox);
+			win.toolbarView.setContent(win.emptyStateBox);
 		return false;
 	});
 }

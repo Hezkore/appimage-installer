@@ -94,11 +94,16 @@ package(windows) void doInstallationComplete(InstallWindow installWindow) {
 	writeln("Installation complete, showing success screen");
 
 	auto appDirRow = buildInfoRow(
-		"folder", L("install.info.installed_to"),
+		["folder-symbolic", "folder"],
+		L("install.info.installed_to"),
 		installWindow.appImage.installedAppDirectory);
 	auto desktopRow = buildInfoRow(
-		"application-x-desktop", L("install.info.desktop_entry"),
-		installWindow.appImage.installedDesktopSymlinkPath);
+		[
+		"application-x-executable-symbolic", "application-x-desktop",
+		"text-x-generic-symbolic"
+	],
+	L("install.info.desktop_entry"),
+	installWindow.appImage.installedDesktopSymlinkPath);
 
 	auto detailsList = new ListBox;
 	detailsList.setSelectionMode(SelectionMode.None);
@@ -182,7 +187,6 @@ package(windows) void doInstallationComplete(InstallWindow installWindow) {
 
 			auto detailsButton = Button.newWithLabel(L("install.button.details"));
 			detailsButton.addCssClass("pill");
-			detailsButton.addCssClass("success-banner-btn");
 			detailsButton.setHexpand(false);
 			detailsButton.setVexpand(false);
 			detailsButton.setValign(Align.Center);

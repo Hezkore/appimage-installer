@@ -78,17 +78,6 @@ void applyGlobalStyles() {
 		/* Error labels */
 		.error-label { color: @error_color; }
 
-		/* Success banner buttons */
-		button.success-banner-btn,
-		button.success-banner-btn:focus {
-			background-color: @success_color;
-			color: @theme_selected_fg_color;
-			border: 1px solid alpha(@theme_selected_fg_color, 0.3);
-			box-shadow: none;
-		}
-		button.success-banner-btn:hover  { background-color: shade(@success_color, 1.12); }
-		button.success-banner-btn:active { background-color: shade(@success_color, 0.88); }
-
 		/* Boxed-list card styling
 		   GtkListBox type-name is "list" not "listbox"
 		   alpha() only takes named colours so use rgba() for black and white */

@@ -90,6 +90,12 @@ appimage-installer --health
 
 ## Building
 
+Requires the D compiler, DUB, GTK 4, and libadwaita. On Debian/Ubuntu:
+
+```sh
+sudo apt install libgtk-4-dev libadwaita-1-dev
+```
+
 Clone the repository and run the build script:
 
 ```sh

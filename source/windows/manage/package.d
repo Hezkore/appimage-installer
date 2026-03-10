@@ -14,7 +14,8 @@ import glib.global : idleAdd, timeoutAdd;
 import glib.types : PRIORITY_DEFAULT;
 import gtk.box : Box;
 import gtk.button : Button;
-import gtk.header_bar : HeaderBar;
+import adw.header_bar : HeaderBar;
+import adw.toolbar_view : ToolbarView;
 import gtk.css_provider : CssProvider;
 import gtk.gesture_click : GestureClick;
 import gtk.image : Image;
@@ -299,10 +300,12 @@ class ManageWindow : AppWindow {
 		this.watcherRunning = false;
 		this.rowResults = [];
 		this.searchIsOpen = false;
-		this.setChild(this.loadingBox);
-		this.loadingSpinner.start();
 		this.headerBar = new HeaderBar;
-		this.setTitlebar(this.headerBar);
+		this.toolbarView = new ToolbarView;
+		this.toolbarView.addTopBar(this.headerBar);
+		this.toolbarView.setContent(this.loadingBox);
+		this.setContent(this.toolbarView);
+		this.loadingSpinner.start();
 		this.doThreadedWork(&this.loadWindow, &this.showWindow);
 	}
 
@@ -922,7 +925,7 @@ class ManageWindow : AppWindow {
 			this.searchButton.hide();
 			this.checkButton.hide();
 		}
-		setChild(this.navStack);
+		this.toolbarView.setContent(this.navStack);
 
 		this.setupDropTarget();
 

@@ -4,6 +4,7 @@
 	],
 	"copyright": "Copyright © 2025, Hezkore",
 	"dependencies": {
+		"gid:adw1": "==0.9.7",
 		"gid:gtk4": "==0.9.7"
 	},
 	"description": "A minimal installer for AppImages",
