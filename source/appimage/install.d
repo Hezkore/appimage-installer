@@ -6,7 +6,7 @@ import std.array : join;
 import std.exception : collectException;
 import std.file;
 import std.path : buildPath, baseName, dirName;
-import std.process : execute, spawnProcess, Config, ProcessException;
+import std.process : execute, spawnProcess, Config, ProcessException, Pid, environment;
 import std.stdio : writeln;
 import std.string : startsWith, strip, split, indexOf, splitLines;
 
@@ -208,6 +208,38 @@ public string portableHomeDir(string appDirectory) {
 
 public string portableConfigDir(string appDirectory) {
 	return buildPath(appDirectory, APPLICATIONS_SUBDIR, "portable.config");
+}
+
+// Spawns an installed app with the environment the install method requires
+public Pid launchInstalledApp(string launchPath, string appDirectory,
+	InstallMethod method, bool portableHome, bool portableConfig) {
+	bool needsEnv = portableHome || portableConfig
+		|| method == InstallMethod.Extracted;
+	if (!needsEnv)
+		return spawnProcess([launchPath]);
+	string[string] env = environment.toAA();
+	if (method == InstallMethod.Extracted)
+		env["APPDIR"] = appDirectory;
+	if (portableHome) {
+		string homeDir = portableHomeDir(appDirectory);
+		try {
+			mkdirRecurse(homeDir);
+		} catch (FileException) {
+		}
+		env["HOME"] = homeDir;
+		env["XDG_DATA_HOME"] = homeDir ~ "/.local/share";
+		env["XDG_CACHE_HOME"] = homeDir ~ "/.cache";
+		env["XDG_STATE_HOME"] = homeDir ~ "/.local/state";
+	}
+	if (portableConfig) {
+		string cfgDir = portableConfigDir(appDirectory);
+		try {
+			mkdirRecurse(cfgDir);
+		} catch (FileException) {
+		}
+		env["XDG_CONFIG_HOME"] = cfgDir;
+	}
+	return spawnProcess([launchPath], env);
 }
 
 // Covers HOME and all XDG dirs that session env may already have set

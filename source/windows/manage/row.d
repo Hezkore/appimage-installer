@@ -3,7 +3,7 @@ module windows.manage.row;
 import std.path : buildPath, dirName;
 import std.file : FileException, exists, symlink, mkdirRecurse, remove,
 	setAttributes, getAttributes;
-import std.process : spawnProcess, ProcessException, environment, wait, tryWait, Pid;
+import std.process : spawnProcess, ProcessException, wait, tryWait, Pid;
 import std.stdio : writeln;
 
 import glib.global : idleAdd, timeoutAdd;
@@ -48,7 +48,7 @@ import windows.optimize : buildOptimizeBox;
 import windows.options : buildOptionsBox;
 import appimage : AppImage;
 import appimage.manifest : Manifest;
-import appimage.install : portableHomeDir, portableConfigDir, writeDesktopFile;
+import appimage.install : portableHomeDir, portableConfigDir, writeDesktopFile, launchInstalledApp;
 import appimage.icon : reinstallIconFromExtractedDir, reinstallIconFromAppImageFile;
 import constants : CSS_PRIORITY_USER, APPLICATIONS_SUBDIR, DESKTOP_SUFFIX,
 	APPIMAGE_EXEC_MODE;
@@ -578,42 +578,12 @@ package AppRowResult buildAppRow(ManageWindow win, ref InstalledApp entry) {
 		launchButton.setSensitive(false);
 		try {
 			auto installedAppManifest = Manifest.loadFromAppDir(capturedDir);
-			bool needsEnv = (installedAppManifest !is null
-				&& (installedAppManifest.portableHome
-				|| installedAppManifest.portableConfig))
-				|| capturedInstallMethod == InstallMethod.Extracted;
-			Pid pid;
-			if (needsEnv) {
-				string[string] env = environment.toAA();
-				if (capturedInstallMethod == InstallMethod.Extracted)
-					env["APPDIR"] = capturedDir;
-				if (installedAppManifest !is null
-				&& installedAppManifest.portableHome) {
-					string portableHomePath = portableHomeDir(capturedDir);
-					// Create the dir if it's gone so the app can write to home
-					try {
-						mkdirRecurse(portableHomePath);
-					} catch (FileException) {
-					}
-					env["HOME"] = portableHomePath;
-					env["XDG_DATA_HOME"] = portableHomePath ~ "/.local/share";
-					env["XDG_CACHE_HOME"] = portableHomePath ~ "/.cache";
-					env["XDG_STATE_HOME"] = portableHomePath ~ "/.local/state";
-				}
-				if (installedAppManifest !is null
-				&& installedAppManifest.portableConfig) {
-					string portableConfigPath = portableConfigDir(capturedDir);
-					// Create the dir if it's gone so the app can write configs
-					try {
-						mkdirRecurse(portableConfigPath);
-					} catch (FileException) {
-					}
-					env["XDG_CONFIG_HOME"] = portableConfigPath;
-				}
-				pid = spawnProcess([launchPath], env);
-			} else {
-				pid = spawnProcess([launchPath]);
-			}
+			bool hasPHome = installedAppManifest !is null
+				&& installedAppManifest.portableHome;
+			bool hasPConfig = installedAppManifest !is null
+				&& installedAppManifest.portableConfig;
+			Pid pid = launchInstalledApp(launchPath, capturedDir,
+				capturedInstallMethod, hasPHome, hasPConfig);
 			Label capturedStatusLabel = rowStatusLabel;
 			string capturedAppName = capturedName;
 			auto watchThread = new Thread({
