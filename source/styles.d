@@ -122,7 +122,10 @@ void applyGlobalStyles() {
 			background-color: mix(@theme_selected_bg_color, @theme_base_color, 0.07);
 		}
 		list.boxed-list > row.open-row:hover {
-			background-image: none;
+			background-color: @theme_base_color;
+			background-image: linear-gradient(
+				rgba(128, 128, 128, 0.09),
+				rgba(128, 128, 128, 0.09));
 		}
 
 		/* Chevron */
