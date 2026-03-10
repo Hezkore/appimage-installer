@@ -907,7 +907,6 @@ class ManageWindow : AppWindow {
 		if (this.installedApps.length == 0) {
 			this.navStack.setVisibleChildName("empty");
 			this.searchButton.hide();
-			this.menuButton.hide();
 			this.checkButton.hide();
 		}
 		setChild(this.navStack);
