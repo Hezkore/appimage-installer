@@ -8,6 +8,8 @@ Right-click any installed application to instantly update or uninstall it.
 
 No fuss, no hassle, just double-click and go.
 
+[![Donate](https://img.buymeacoffee.com/button-api/?text=Donate%20&emoji=%F0%9F%91%BE&slug=hezkore&button_colour=FFDD00&font_colour=000000&font_family=Inter&outline_colour=000000&coffee_colour=ffffff)](https://www.buymeacoffee.com/hezkore)
+
 ## Why
 
 AppImages come as a single file with no installer.\
