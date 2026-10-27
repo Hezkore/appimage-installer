@@ -1,6 +1,9 @@
 module windows.base;
 
 import std.stdio : writeln;
+import std.exception : collectException;
+import std.string : toStringz;
+import std.typecons : Yes;
 import std.concurrency;
 import core.atomic : atomicLoad, atomicStore;
 import core.time : dur;
@@ -11,6 +14,10 @@ import glib.types : PRIORITY_DEFAULT;
 import adw.application_window : ApplicationWindow;
 import adw.header_bar : HeaderBar;
 import adw.toolbar_view : ToolbarView;
+import gio.async_result : AsyncResult;
+import gobject.object : ObjectWrap;
+import gtk.alert_dialog : AlertDialog;
+import gtk.c.functions : gtk_alert_dialog_new;
 import gtk.box : Box;
 import gtk.button : Button;
 import gtk.center_box : CenterBox;
@@ -186,6 +193,19 @@ abstract class AppWindow : ApplicationWindow {
 	// Set to true on window close so background downloads abort via shouldCancel delegates
 	package(windows) shared bool workCancelled;
 
+	// Tells the user the work failed so the window does not just vanish
+	private void showWorkFailedAndClose() {
+		auto dialog = new AlertDialog(cast(void*) gtk_alert_dialog_new(
+			"%s".ptr, L("error.work.title").toStringz()), Yes.Take);
+		dialog.setDetail(L("error.work.detail"));
+		dialog.setButtons([L("button.close")]);
+		dialog.setModal(true);
+		dialog.choose(this, null, (ObjectWrap source, AsyncResult result) {
+			collectException(dialog.chooseFinish(result));
+			this.close();
+		});
+	}
+
 	// Runs the work function on a background thread and reports the result back to GTK
 	void doThreadedWork(void delegate() workDelegate, void delegate() completionDelegate) {
 		atomicStore(this.workCancelled, false);
@@ -220,7 +240,7 @@ abstract class AppWindow : ApplicationWindow {
 				} else {
 					// Closing here avoids a stuck spinner when the worker never finished cleanly
 					writeln("Worker failed, closing window.");
-					this.close();
+					this.showWorkFailedAndClose();
 				}
 				return false;
 			}

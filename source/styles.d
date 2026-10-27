@@ -52,22 +52,22 @@ void applyGlobalStyles() {
 
 		/* Banners */
 		.info-banner {
-			background-color: @theme_selected_bg_color;
-			color: @theme_selected_fg_color;
+			background-color: @accent_bg_color;
+			color: @accent_fg_color;
 			padding: 10px 16px;
 		}
 		.info-banner label { color: inherit; }
 
 		.success-banner {
-			background-color: @success_color;
-			color: @theme_selected_fg_color;
+			background-color: @success_bg_color;
+			color: @success_fg_color;
 			padding: 10px 16px;
 		}
 		.success-banner label { color: inherit; }
 
 		.warning-banner {
-			background-color: @warning_color;
-			color: @theme_selected_fg_color;
+			background-color: @warning_bg_color;
+			color: @warning_fg_color;
 			padding: 10px 16px;
 		}
 		.warning-banner label { color: inherit; }

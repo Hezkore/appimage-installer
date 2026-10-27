@@ -42,6 +42,7 @@ import windows.base : CONTENT_REVEAL_DELAY_MS, ACTION_REVEAL_DELAY_MS;
 import application : App;
 import appimage : AppImage;
 import appimage.signature : SignatureStatus;
+import constants : HOST_ARCHITECTURE;
 import lang : L;
 
 // Two-phase flow to verify a file is safe before installing it and showing the app branding
@@ -133,6 +134,12 @@ class InstallWindow : AppWindow {
 		}
 	}
 
+	// Unknown architectures are allowed since the ELF reader only names common ones
+	private bool isArchitectureSupported() {
+		return !this.appImage.architecture.length || !HOST_ARCHITECTURE.length
+			|| this.appImage.architecture == HOST_ARCHITECTURE;
+	}
+
 	private void showVerifyView() {
 		this.setTitle(L("window.title.installer"));
 		this.langButton = makeLangButton(this);
@@ -168,9 +175,13 @@ class InstallWindow : AppWindow {
 		// Verify banner uses CenterBox so the label is always truly centered regardless of button width
 		this.bannerBox = new CenterBox;
 		this.bannerBox.setHexpand(true);
-		this.bannerBox.addCssClass("info-banner");
+		this.bannerBox.addCssClass(
+			this.isArchitectureSupported() ? "info-banner" : "warning-banner");
 
-		this.bannerLabel = new Label(L("install.banner.verify"));
+		this.bannerLabel = new Label(this.isArchitectureSupported()
+			? L("install.banner.verify")
+			: L("install.banner.architecture",
+				this.appImage.architecture, HOST_ARCHITECTURE));
 		this.bannerLabel.addCssClass("heading");
 		this.bannerLabel.setValign(Align.Center);
 		this.bannerBox.setCenterWidget(this.bannerLabel);
@@ -181,7 +192,9 @@ class InstallWindow : AppWindow {
 		this.actionButton.setValign(Align.Center);
 		this.actionButton.setMarginStart(Layout.actionButtonStart);
 		this.actionButton.setMarginEnd(Layout.actionButtonEnd);
-		this.bannerBox.setEndWidget(this.actionButton);
+		// The AppImage runtime has to run to read the app, which fails on another CPU
+		if (this.isArchitectureSupported())
+			this.bannerBox.setEndWidget(this.actionButton);
 
 		this.bannerStack.addTitled(this.bannerBox, "verify", "Verify");
 		this.bannerStack.setVisibleChildName("verify");

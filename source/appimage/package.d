@@ -333,6 +333,8 @@ class AppImage {
 		// Temporarily make executable so the AppImage runtime can mount it
 		auto savedAttributes = getAttributes(this.filePath);
 		setAttributes(this.filePath, APPIMAGE_EXEC_MODE);
+		scope (failure)
+			setAttributes(this.filePath, savedAttributes);
 
 		auto mountProcess = pipeProcess([this.filePath, "--appimage-mount"]);
 		scope (exit) {

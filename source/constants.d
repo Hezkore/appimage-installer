@@ -35,6 +35,18 @@ enum uint APPIMAGE_EXEC_MODE = octal!755;
 // System hicolor icon theme index used to seed a fresh user hicolor directory
 enum string SYSTEM_ICON_THEME_PATH = "/usr/share/icons/hicolor/index.theme";
 
+// CPU architecture this build runs on, named like the ELF reader in appimage.elf
+version (X86_64)
+	enum string HOST_ARCHITECTURE = "x86_64";
+else version (X86)
+	enum string HOST_ARCHITECTURE = "i686";
+else version (AArch64)
+	enum string HOST_ARCHITECTURE = "aarch64";
+else version (ARM)
+	enum string HOST_ARCHITECTURE = "armhf";
+else
+	enum string HOST_ARCHITECTURE = "";
+
 // FUSE mount prefix used by the AppImage runtime when running mounted
 enum string APPIMAGE_FUSE_MOUNT_PREFIX = "/tmp/.mount_";
 
