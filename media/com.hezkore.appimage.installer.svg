@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+	<defs>
+		<linearGradient id="tile" gradientUnits="userSpaceOnUse" x1="0" y1="28" x2="0" y2="76">
+			<stop offset="0" stop-color="#62a8ff"/>
+			<stop offset="1" stop-color="#2c6be0"/>
+		</linearGradient>
+		<linearGradient id="inside" gradientUnits="userSpaceOnUse" x1="0" y1="46" x2="0" y2="90">
+			<stop offset="0" stop-color="#6e4520"/>
+			<stop offset="1" stop-color="#9a6634"/>
+		</linearGradient>
+	</defs>
+	<g transform="translate(64 64) scale(1.07) translate(-64 -73.7)">
+		<polygon points="24,68 64,46 52,33 12,55" fill="#e9bd80"/>
+		<polygon points="64,46 104,68 116,55 76,33" fill="#dcab69"/>
+		<polygon points="64,46 104,68 64,90 24,68" fill="url(#inside)"/>
+		<rect x="34" y="28" width="60" height="60" rx="15" fill="url(#tile)"/>
+		<g fill="#ffffff">
+			<rect x="47.5" y="41.5" width="14" height="14" rx="4"/>
+			<rect x="66.5" y="41.5" width="14" height="14" rx="4"/>
+			<rect x="47.5" y="60.5" width="14" height="14" rx="4"/>
+			<rect x="66.5" y="60.5" width="14" height="14" rx="4" opacity="0.6"/>
+		</g>
+		<polygon points="24,68 64,90 64,120 24,98" fill="#d49a55"/>
+		<polygon points="64,90 104,68 104,98 64,120" fill="#bb8240"/>
+		<polygon points="24,68 64,90 54,103.5 14,81.5" fill="#e3b06d"/>
+		<polygon points="64,90 104,68 114,81.5 74,103.5" fill="#cd954f"/>
+	</g>
+</svg>

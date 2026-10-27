@@ -35,12 +35,36 @@ public bool isAppImageAssociated() {
 	return execValue.startsWith(currentExe);
 }
 
-// Writes the installer .desktop file to destPath, always overwriting
+// Writes the embedded installer icon into the user hicolor theme so launchers can find it
+public bool installInstallerIcon(out string error) {
+	import std.file : write, FileException, mkdirRecurse;
+	import appimage.icon : updateIconCache;
+	import constants : INSTALLER_ICON_NAME;
+
+	string hicolorBase = buildPath(xdgDataHome(), "icons", "hicolor");
+	string iconDirectory = buildPath(hicolorBase, "scalable", "apps");
+	try {
+		mkdirRecurse(iconDirectory);
+		write(buildPath(iconDirectory, INSTALLER_ICON_NAME ~ ".svg"),
+			import(INSTALLER_ICON_NAME ~ ".svg"));
+	} catch (FileException fileException) {
+		error = fileException.msg;
+		return false;
+	}
+	updateIconCache(hicolorBase);
+	return true;
+}
+
+// Writes the installer .desktop file to destPath, a hidden background updater entry next to it
+// and its icon, always overwriting
 public bool writeInstallerDesktopFile(string destPath, out string error) {
 	import std.file : write, FileException, mkdirRecurse, thisExePath;
 	import std.path : dirName;
 	import lang : availableLangs, translateIn;
-	import constants : INSTALLER_DESKTOP_FILE;
+	import constants : INSTALLER_ICON_NAME, BGUPDATE_DESKTOP_FILE;
+
+	if (!installInstallerIcon(error))
+		return false;
 
 	string baseName = translateIn("en", "app.name");
 	string baseDesc = translateIn("en", "app.description");
@@ -61,11 +85,18 @@ public bool writeInstallerDesktopFile(string destPath, out string error) {
 				~ "Type=Application\n"
 				~ localeNames
 				~ localeDescs
-				~ "Icon=com.hezkore.appimage.installer\n"
+				~ "Icon=" ~ INSTALLER_ICON_NAME ~ "\n"
 				~ "Exec=" ~ thisExePath() ~ " %f\n"
 				~ "MimeType=application/vnd.appimage;"
 				~ "application/x-iso9660-appimage;\n"
 				~ "NoDisplay=false\n");
+		write(buildPath(dirName(destPath), BGUPDATE_DESKTOP_FILE),
+			"[Desktop Entry]\n"
+				~ "Type=Application\n"
+				~ localeNames
+				~ "Icon=" ~ INSTALLER_ICON_NAME ~ "\n"
+				~ "Exec=" ~ thisExePath() ~ " --background-update\n"
+				~ "NoDisplay=true\n");
 	} catch (FileException fileException) {
 		error = fileException.msg;
 		return false;

@@ -13,7 +13,7 @@ import constants : INSTALLER_VERSION, DESKTOP_PREFIX, DESKTOP_SUFFIX;
 import constants : APPLICATIONS_SUBDIR, MANIFEST_FILE_NAME;
 import apputils : xdgDataHome, homeDir, installBaseDir, writeInstallerDesktopFile, associateAppImages,
 	writeSystemdServiceFile, writeSystemdTimerFile, isAppImageAssociated;
-import constants : INSTALLER_DESKTOP_FILE;
+import constants : INSTALLER_DESKTOP_FILE, INSTALLER_ICON_NAME;
 import appimage : AppImage;
 import appimage.manifest : Manifest;
 
@@ -104,6 +104,8 @@ private void printHealth() {
 
 	string desktopPath = buildPath(
 		xdgDataHome(), "applications", INSTALLER_DESKTOP_FILE);
+	string iconPath = buildPath(xdgDataHome(), "icons", "hicolor",
+		"scalable", "apps", INSTALLER_ICON_NAME ~ ".svg");
 	string systemdDir = buildPath(homeDir(), ".config", "systemd", "user");
 	string servicePath = buildPath(systemdDir, SYSTEMD_SERVICE_FILE);
 	string timerPath = buildPath(systemdDir, SYSTEMD_TIMER_FILE);
@@ -127,6 +129,8 @@ private void printHealth() {
 	writeln("in PATH    ", inPath ? "yes" : "no");
 	writeln("desktop    ", desktopPath,
 		" [", exists(desktopPath) ? "exists" : "missing", "]");
+	writeln("icon       ", iconPath,
+		" [", exists(iconPath) ? "exists" : "missing", "]");
 	writeln("associated ", associated ? "yes" : "no");
 	writeln("service    ", servicePath,
 		" [", exists(servicePath) ? "exists" : "missing", "]");

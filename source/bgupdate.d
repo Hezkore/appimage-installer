@@ -24,7 +24,7 @@ import gtk.application : GtkApplication = Application;
 
 import appimage.manifest : Manifest;
 import apputils : xdgDataHome, configDir, writeInstallerUpdateFlag;
-import constants : BGUPDATE_STATE_FILE_NAME, PROC_DIRECTORY;
+import constants : BGUPDATE_STATE_FILE_NAME, PROC_DIRECTORY, INSTALLER_ICON_NAME;
 import lang : L;
 
 import update.common : parseUpdateMethodKind, UpdateMethodKind;
@@ -206,7 +206,7 @@ private void sendMultiUpdateNotify(GtkApplication app, int count) {
 private void sendInstallerUpdateNotify(GtkApplication app) {
 	auto notif = new GioNotification(L("bgupdate.notify.installer.title"));
 	notif.setBody(L("bgupdate.notify.installer.body"));
-	notif.setIcon(new ThemedIcon("software-update-available"));
+	notif.setIcon(new ThemedIcon(INSTALLER_ICON_NAME));
 	notif.addButton(L("bgupdate.notify.button.manage"), "app.bgupdate-manage");
 	app.sendNotification("bgupdate-installer", notif);
 }
@@ -217,7 +217,7 @@ private void sendCombinedUpdateNotify(GtkApplication app, int appCount) {
 	string bodyKey = appCount == 1
 		? "bgupdate.notify.installer.body.with.app" : "bgupdate.notify.installer.body.with.apps";
 	notif.setBody(L(bodyKey, appCount.to!string));
-	notif.setIcon(new ThemedIcon("software-update-available"));
+	notif.setIcon(new ThemedIcon(INSTALLER_ICON_NAME));
 	notif.addButton(L("bgupdate.notify.button.manage"), "app.bgupdate-manage");
 	app.sendNotification("bgupdate-installer", notif);
 }

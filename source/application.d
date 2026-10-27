@@ -6,6 +6,7 @@ import std.concurrency : Tid, thisTid;
 
 import gio.types : ApplicationFlags;
 import adw.application : Application;
+import gtk.window : Window;
 
 import styles : applyGlobalStyles;
 import args : AppArgs, parseArgs;
@@ -15,7 +16,7 @@ import windows.install : InstallWindow;
 import windows.manage : ManageWindow;
 import windows.uninstall : UninstallWindow;
 import windows.update : UpdateWindow;
-import constants : APP_ID, BGUPDATE_APP_ID;
+import constants : APP_ID, BGUPDATE_APP_ID, INSTALLER_ICON_NAME;
 
 // GTK Application subclass that picks a mode and shows the matching window
 class App : Application {
@@ -46,6 +47,7 @@ class App : Application {
 			setLang(lang);
 
 		applyGlobalStyles();
+		Window.setDefaultIconName(INSTALLER_ICON_NAME);
 		if (this.parsedArgs.mode == AppMode.BackgroundUpdate) {
 			import bgupdate : runBackgroundUpdate;
 			import gtk.application : GtkApplication = Application;

@@ -73,6 +73,8 @@ echo "Downloading ${BINARY}..."
 curl -sSL "${DOWNLOAD_URL}" | tar xz -C "${INSTALL_DIR}"
 echo ""
 
+"${INSTALL_DIR}/${BINARY}" --desktop "${DESKTOP_DIR}" >/dev/null
+
 if ask "Associate .AppImage files with ${BINARY}?"; then
 	require_command xdg-mime xdg-utils
 	"${INSTALL_DIR}/${BINARY}" --associate

@@ -50,6 +50,9 @@ enum string SIGNATURE_TEMP_FILE_PREFIX = "aisig_";
 // Desktop file name that registers the installer as the AppImage handler
 enum string INSTALLER_DESKTOP_FILE = "com.hezkore.appimage.installer.desktop";
 
+// Theme icon name for the installer, matching the embedded SVG file name
+enum string INSTALLER_ICON_NAME = "com.hezkore.appimage.installer";
+
 // GitHub release tag sentinels used when selecting and comparing release channels
 enum string TAG_LATEST = "latest";
 enum string TAG_LATEST_PRE = "latest-pre";
@@ -77,6 +80,9 @@ enum string APP_ID = "com.hezkore.appimage.installer";
 
 // Separate identifier used by the background updater to avoid D-Bus conflicts
 enum string BGUPDATE_APP_ID = "com.hezkore.appimage.installer.bgupdate";
+
+// Hidden desktop file that lets notification servers match the background updater to the installer icon
+enum string BGUPDATE_DESKTOP_FILE = BGUPDATE_APP_ID ~ ".desktop";
 
 // File inside the config directory that stores user preferences
 enum string CONFIG_FILE_NAME = "config.json";

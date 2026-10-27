@@ -10,6 +10,6 @@
 	"description": "A minimal installer for AppImages",
 	"license": "proprietary",
 	"name": "appimage-installer",
-	"stringImportPaths": ["lang"],
+	"stringImportPaths": ["lang", "media"],
 	"version": "0.1.0"
 }
