@@ -6,6 +6,7 @@ module update.zsync;
 import std.algorithm : min;
 import std.array : appender;
 import std.conv : to;
+import std.digest : toHexString;
 import std.digest.sha : SHA1;
 import std.exception : ErrnoException;
 import std.file : exists, remove, getSize, mkdirRecurse;
@@ -15,6 +16,7 @@ import std.path : buildPath, dirName;
 import std.stdio : File, writeln;
 import std.string : startsWith, strip, splitLines, indexOf, lastIndexOf, split;
 
+import appimage.manifest : Manifest;
 import update.common : readManifestFields, finishInstall, MAX_HTTP_REDIRECTS;
 import update.zsync.md4 : computeMd4;
 import types : InstallMethod;
@@ -649,7 +651,13 @@ public bool checkZsyncForUpdate(
 	}
 
 	if (!existingPath.length) {
-		writeln("zsync: check: no existing file, update available");
+		auto manifest = Manifest.loadFromAppDir(appDirectory);
+		if (manifest !is null && manifest.zsyncSha1 == toHexString(meta.sha1)) {
+			available = false;
+			writeln("zsync: check: already up to date (stored SHA-1)");
+		} else {
+			writeln("zsync: check: no existing file or stored SHA-1, update available");
+		}
 		return true;
 	}
 
@@ -801,6 +809,13 @@ public bool performZsyncUpdate(
 			"update.zsync.status.extracting",
 			errorMessage, false, shouldCancel))
 		return false;
+
+	// Record the installed SHA-1 so checks still work after the AppImage is removed
+	auto installedManifest = Manifest.loadFromAppDir(appDirectory);
+	if (installedManifest !is null) {
+		installedManifest.zsyncSha1 = toHexString(meta.sha1).idup;
+		installedManifest.save();
+	}
 
 	// For Extracted mode when no prior AppImage existed in the metadata dir,
 	// the user chose download+extract+cleanup so we remove the placed AppImage

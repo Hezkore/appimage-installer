@@ -24,7 +24,7 @@ import constants : APPIMAGE_EXEC_MODE, APPLICATIONS_SUBDIR, DESKTOP_SUFFIX,
 // Replaces exact version tokens in gh-releases asset patterns with * so the
 // pattern keeps matching after the app is updated to a new version
 public string normalizeUpdateInfoPattern(string updateInfo) {
-	import std.array : join, split;
+	import std.array : join, replace, split;
 	import std.string : indexOf, startsWith;
 
 	bool isGhRelease = updateInfo.startsWith("gh-releases|");
@@ -34,10 +34,11 @@ public string normalizeUpdateInfoPattern(string updateInfo) {
 	auto fields = updateInfo.split("|");
 	if (fields.length < 5)
 		return updateInfo;
-	string pattern = fields[$ - 1];
-	if (pattern.indexOf('*') >= 0)
-		return updateInfo;
-	fields[$ - 1] = replaceAll(pattern, regex(r"\d+\.\d+[\d.]*"), "*");
+	// GitHub stores spaces in uploaded asset names as dots
+	string pattern = fields[$ - 1].replace(" ", ".");
+	if (pattern.indexOf('*') < 0)
+		pattern = replaceAll(pattern, regex(r"\d+\.\d+[\d.]*"), "*");
+	fields[$ - 1] = pattern;
 	return fields.join("|");
 }
 

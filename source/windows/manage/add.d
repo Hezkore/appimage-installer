@@ -10,12 +10,15 @@ import std.string : endsWith, indexOf, split, startsWith, strip;
 
 import gdk.texture : Texture;
 import gdkpixbuf.pixbuf : Pixbuf;
+import gio.async_result : AsyncResult;
 import glib.error : ErrorWrap;
 import glib.global : timeoutAdd;
 import glib.types : PRIORITY_DEFAULT;
+import gobject.object : ObjectWrap;
 import gtk.box : Box;
 import gtk.button : Button;
 import gtk.entry : Entry;
+import gtk.file_dialog : FileDialog;
 import gtk.image : Image;
 import gtk.label : Label;
 import gtk.list_box : ListBox;
@@ -196,8 +199,23 @@ private Box buildInfoContent(
 	auto openCard = makeInfoCard(
 		"folder-open-symbolic",
 		L("add.method.open.title"), L("add.method.open.sub"));
-	if (!associated)
-		openCard.hide();
+	openCard.setActivatable(true);
+	list.connectRowActivated((ListBoxRow row, ListBox listBox) {
+		if (row !is openCard)
+			return;
+		auto fileDialog = new FileDialog;
+		fileDialog.setTitle(L("add.method.open.title"));
+		fileDialog.open(win, null,
+			(ObjectWrap source, AsyncResult asyncResult) {
+			try {
+				string path = fileDialog.openFinish(asyncResult).getPath();
+				if (path.length)
+					win.openFileForInstall(path);
+			} catch (ErrorWrap error) {
+				writeln("add: file dialog cancelled or failed: ", error.msg);
+			}
+		});
+	});
 
 	// Warn when AppImages are not set to open with this installer
 	if (!associated) {
@@ -224,7 +242,6 @@ private Box buildInfoContent(
 			string assocError;
 			if (associateAppImages(assocError)) {
 				assocRow.hide();
-				openCard.show();
 			} else {
 				assocIcon.setFromIconName("dialog-error-symbolic");
 				assocLabel.setText(assocError);

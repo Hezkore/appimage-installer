@@ -26,6 +26,8 @@ class Manifest {
 	string sourceFileSize;
 	string sourceFileModified;
 	string sourceFileHash;
+	// SHA-1 of the AppImage last installed by a zsync update, kept for installs that delete the AppImage
+	string zsyncSha1;
 	ubyte appImageType;
 	string architecture;
 	string updateInfo;
@@ -78,6 +80,7 @@ class Manifest {
 			manifest.sourceFileSize = field("sourceFileSize");
 			manifest.sourceFileModified = field("sourceFileModified");
 			manifest.sourceFileHash = field("sourceFileHash");
+			manifest.zsyncSha1 = field("zsyncSha1");
 			manifest.installedIconName = field("installedIconName");
 			manifest.iconCheckedVersion = field("iconCheckedVersion");
 			manifest.appDirectory = field("appDirectory");
@@ -160,6 +163,7 @@ class Manifest {
 		json["sourceFileSize"] = this.sourceFileSize;
 		json["sourceFileModified"] = this.sourceFileModified;
 		json["sourceFileHash"] = this.sourceFileHash;
+		json["zsyncSha1"] = this.zsyncSha1;
 		json["appImageType"] = this.appImageType;
 		json["architecture"] = this.architecture;
 		json["updateInfo"] = this.updateInfo;

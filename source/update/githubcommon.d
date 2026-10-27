@@ -6,11 +6,39 @@ import core.time : MonoTime, minutes;
 import std.conv : to;
 import std.json : JSONException, JSONType, JSONValue, parseJSON;
 import std.net.curl : CurlException, HTTP;
+import std.path : globMatch;
+import std.regex : matchAll, regex;
 import std.stdio : writeln;
 
 import apputils : readConfigGithubToken;
-import constants : INSTALLER_NAME, TAG_LATEST, TAG_LATEST_PRE, TAG_LATEST_ALL,
+import constants : HOST_ARCHITECTURE, INSTALLER_NAME, TAG_LATEST, TAG_LATEST_PRE, TAG_LATEST_ALL,
 	HTTP_FORBIDDEN, HTTP_TOO_MANY_REQUESTS, HTTP_BAD_REQUEST;
+
+// Architecture names used in release asset filenames, for each name the ELF reader reports
+private immutable string[][string] ASSET_ARCH_NAMES = [
+	"x86_64": ["x86_64", "amd64", "x64"],
+	"aarch64": ["aarch64", "arm64"],
+	"armhf": ["armhf", "armv7l", "armv7"],
+	"i686": ["i686", "i386"],
+];
+
+// True when name matches pattern and does not name an architecture other than this machine's
+// Release patterns like "App-*.AppImage" also match the arm64 build of the same release
+public bool assetMatchesHost(string name, string pattern) {
+	import std.algorithm : canFind;
+	import std.uni : toLower;
+
+	if (!globMatch(name, pattern))
+		return false;
+	auto archNamePattern = regex(
+		`(?:^|[-._ ])(x86_64|amd64|x64|aarch64|arm64|armhf|armv7l|armv7|i686|i386)(?=[-._ ]|$)`, "i");
+	auto hostNames = HOST_ARCHITECTURE in ASSET_ARCH_NAMES;
+	foreach (found; matchAll(name, archNamePattern)) {
+		if (hostNames is null || !(*hostNames).canFind(found[1].toLower))
+			return false;
+	}
+	return true;
+}
 
 package enum string GITHUB_API_BASE = "https://api.github.com/repos/";
 

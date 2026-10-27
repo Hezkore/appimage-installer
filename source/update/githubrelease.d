@@ -5,13 +5,13 @@ module update.githubrelease;
 import std.exception : collectException;
 import std.file : exists, remove, mkdirRecurse, FileException;
 import std.json : JSONValue;
-import std.path : buildPath, dirName, globMatch;
+import std.path : buildPath, dirName;
 import std.stdio : writeln;
 import std.string : split, startsWith, strip;
 
 import appimage.manifest : Manifest;
-import update.common : readManifestFields, finishInstall, downloadFile;
-import update.githubcommon : fetchGitHubRelease;
+import update.common : normalizeUpdateInfoPattern, readManifestFields, finishInstall, downloadFile;
+import update.githubcommon : assetMatchesHost, fetchGitHubRelease;
 import types : InstallMethod;
 import constants : APPLICATIONS_SUBDIR, UPDATE_SUBDIR;
 
@@ -46,7 +46,7 @@ private bool resolveGitHubRelease(
 	out GitHubReleaseInfo releaseInfo,
 	out string error,
 	bool delegate() shouldCancel = null) {
-	auto fields = updateInfo[PREFIX.length .. $].split("|");
+	auto fields = normalizeUpdateInfoPattern(updateInfo)[PREFIX.length .. $].split("|");
 	if (fields.length != 4) {
 		error = "Invalid gh-releases format";
 		return false;
@@ -74,7 +74,7 @@ private bool resolveGitHubRelease(
 	if (auto assetsPointer = "assets" in releaseJson) {
 		foreach (asset; assetsPointer.array) {
 			string name = asset["name"].str;
-			if (globMatch(name, assetPattern)) {
+			if (assetMatchesHost(name, assetPattern)) {
 				releaseInfo.assetUrl = asset["browser_download_url"].str;
 				writeln(
 					"ghrelease: resolved ",

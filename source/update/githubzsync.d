@@ -5,15 +5,15 @@ module update.githubzsync;
 import std.exception : collectException;
 import std.file : exists, remove, mkdirRecurse, FileException;
 import std.json : JSONValue;
-import std.path : buildPath, dirName, globMatch;
+import std.path : buildPath, dirName;
 import std.string : endsWith, split, startsWith, strip;
 import std.stdio : writeln;
 
 import appimage.manifest : Manifest;
 import constants : TAG_LATEST, APPLICATIONS_SUBDIR, UPDATE_SUBDIR;
 import types : InstallMethod;
-import update.common : downloadFile, finishInstall, readManifestFields;
-import update.githubcommon : fetchGitHubRelease;
+import update.common : normalizeUpdateInfoPattern, downloadFile, finishInstall, readManifestFields;
+import update.githubcommon : assetMatchesHost, fetchGitHubRelease;
 import update.zsync : checkZsyncForUpdate, performZsyncUpdate;
 
 private enum string PREFIX = "gh-releases-zsync|";
@@ -32,7 +32,7 @@ private bool resolveGitHubZsyncUrl(
 	out string metadataUrl,
 	out string error,
 	bool delegate() shouldCancel = null) {
-	auto fields = updateInfo[PREFIX.length .. $].split("|");
+	auto fields = normalizeUpdateInfoPattern(updateInfo)[PREFIX.length .. $].split("|");
 	if (fields.length != 4) {
 		error = "Invalid gh-releases-zsync format";
 		return false;
@@ -57,7 +57,7 @@ private bool resolveGitHubZsyncUrl(
 	if (auto assetsPointer = "assets" in releaseJson) {
 		foreach (asset; assetsPointer.array) {
 			string name = asset["name"].str;
-			if (globMatch(name, assetPattern)) {
+			if (assetMatchesHost(name, assetPattern)) {
 				metadataUrl = asset["browser_download_url"].str;
 				writeln("ghzsync: resolved to ", metadataUrl);
 				return true;
@@ -139,7 +139,7 @@ private bool resolveFallbackAsset(
 	out string assetUrl,
 	out string error,
 	bool delegate() shouldCancel = null) {
-	auto fields = updateInfo[PREFIX.length .. $].split("|");
+	auto fields = normalizeUpdateInfoPattern(updateInfo)[PREFIX.length .. $].split("|");
 	if (fields.length != 4)
 		return false;
 	string ownerName = fields[0].strip();
@@ -157,7 +157,7 @@ private bool resolveFallbackAsset(
 	if (auto assetsPointer = "assets" in releaseJson) {
 		foreach (asset; assetsPointer.array) {
 			string name = asset["name"].str;
-			if (globMatch(name, appimagePattern)) {
+			if (assetMatchesHost(name, appimagePattern)) {
 				assetUrl = asset["browser_download_url"].str;
 				writeln("ghzsync: fallback asset resolved to ", assetUrl);
 				return true;
