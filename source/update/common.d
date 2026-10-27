@@ -258,6 +258,12 @@ public bool finishInstall(
 		progress = progressEnd;
 		writeln("update: replaced AppImage at ", dest);
 		reapplyAppIntegration(dest, appDirectory, sanitizedName);
+		// The new file is the latest release, so the stored flag is now stale
+		auto updatedManifest = Manifest.loadFromAppDir(appDirectory);
+		if (updatedManifest !is null && updatedManifest.updateAvailable) {
+			updatedManifest.updateAvailable = false;
+			updatedManifest.save();
+		}
 		return true;
 	}
 

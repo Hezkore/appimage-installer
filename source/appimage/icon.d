@@ -20,6 +20,34 @@ private enum string ICON_DIR_SVG = "scalable";
 // Icon formats to search for, in priority order
 private immutable string[] ICON_EXTENSIONS = [".svg", ".png", ".xpm"];
 
+// Returns the icon extension for path, reading the file header when the name has
+// no supported extension, as with a .DirIcon that is a plain file
+public string iconFileExtension(string path) {
+	import std.algorithm : canFind, startsWith;
+	import std.exception : ErrnoException;
+	import std.stdio : File;
+	import std.string : representation;
+
+	string fileExtension = path.extension.toLower;
+	if (ICON_EXTENSIONS.canFind(fileExtension))
+		return fileExtension;
+	ubyte[512] headerBuffer;
+	ubyte[] header;
+	try {
+		auto iconFile = File(path, "rb");
+		header = iconFile.rawRead(headerBuffer[]);
+	} catch (ErrnoException error) {
+		return "";
+	}
+	if (header.startsWith([0x89, 'P', 'N', 'G']))
+		return ".png";
+	if (header.canFind("XPM".representation))
+		return ".xpm";
+	if (header.canFind("<svg".representation) || header.canFind("<?xml".representation))
+		return ".svg";
+	return "";
+}
+
 // Copies the best available icon from the extracted app directory into the hicolor theme
 public void installIconFromDir(AppImage appImage, string extractDirectory) {
 	import appimage : pathIsSymlink;
@@ -53,9 +81,8 @@ public void installIconFromDir(AppImage appImage, string extractDirectory) {
 		if (!exists(candidate))
 			continue;
 
-		string fileExtension = candidate.extension.toLower;
-		if (fileExtension != ".svg"
-			&& fileExtension != ".png" && fileExtension != ".xpm")
+		string fileExtension = iconFileExtension(candidate);
+		if (!fileExtension.length)
 			continue;
 
 		string sizeSubdirectory = (fileExtension == ".svg") ? ICON_DIR_SVG : ICON_DIR_PNG;

@@ -725,6 +725,7 @@ package AppRowResult buildAppRow(ManageWindow win, ref InstalledApp entry) {
 			win.setTitle(manageTitle);
 			win.slideBackToManage();
 			reloadRow();
+			win.syncUpdateState();
 		};
 
 		currentBackAction = restoreManageView;

@@ -127,6 +127,44 @@ private void appendAppGroup(
 	}
 }
 
+// Reinstalls the icon of AppImage-mode apps saved without one, once per installer
+// version so apps that ship no icon are not remounted at each open
+// Returns true when any manifest changed
+private bool restoreMissingIcons(InstalledApp[] apps) {
+	import std.file : exists;
+	import std.path : buildPath;
+	import std.stdio : writeln;
+	import constants : INSTALLER_VERSION;
+	import types : InstallMethod;
+	import update.common : reapplyAppIntegration;
+
+	bool changed;
+	foreach (ref app; apps) {
+		if (app.isOrphan || app.installedIconName.length
+			|| app.installMethod != InstallMethod.AppImage)
+			continue;
+		auto installedAppManifest = Manifest.loadFromAppDir(app.appDirectory);
+		if (installedAppManifest is null
+			|| installedAppManifest.iconCheckedVersion == INSTALLER_VERSION)
+			continue;
+		string appImagePath = buildPath(
+			app.appDirectory, app.sanitizedName ~ ".AppImage");
+		if (exists(appImagePath)) {
+			writeln("manage: looking for the missing icon of ", app.appName);
+			reapplyAppIntegration(
+				appImagePath, app.appDirectory, app.sanitizedName);
+		}
+		// Reload since reapplyAppIntegration saved the manifest itself
+		installedAppManifest = Manifest.loadFromAppDir(app.appDirectory);
+		if (installedAppManifest is null)
+			continue;
+		installedAppManifest.iconCheckedVersion = INSTALLER_VERSION;
+		installedAppManifest.save();
+		changed = true;
+	}
+	return changed;
+}
+
 // Counts non-orphan rows that have a pending update
 private int countUpdatable(AppRowResult[] rows) {
 	int count = 0;
@@ -147,8 +185,7 @@ private void launchRowUpdate(
 	int* remaining,
 	Button updateAllBtn,
 	Button checkBtn,
-	Revealer updateAllRevealer,
-	AppRowResult[] allRows,
+	ManageWindow win,
 	bool delegate() shouldCancel = null) {
 	double progress = 0.0;
 	string statusText = "update.direct.status.start";
@@ -200,11 +237,7 @@ private void launchRowUpdate(
 			if (*remaining <= 0) {
 				updateAllBtn.setSensitive(true);
 				checkBtn.setSensitive(true);
-				int count = 0;
-				foreach (ref r; allRows)
-					if (r.updateLabel !is null && r.updateLabel.getVisible())
-						count++;
-				updateAllRevealer.setRevealChild(count >= 2);
+				win.syncUpdateState();
 			}
 			return false;
 		});
@@ -244,6 +277,7 @@ class ManageWindow : AppWindow {
 	private SearchEntry searchBar;
 	private Button searchButton;
 	private Button checkButton;
+	private UpdateAllSection updateAllSection;
 	private MenuButton menuButton;
 	private bool searchIsOpen;
 	private DropTarget activeDropTarget;
@@ -279,6 +313,29 @@ class ManageWindow : AppWindow {
 		filterThread.start();
 	}
 
+	// Reads each app's saved update flag and applies it to its row label, the
+	// in-memory entry and the Update All banner, so all paths show one state
+	package void syncUpdateState() {
+		int updateCount = 0;
+		foreach (ref rowResult; this.rowResults) {
+			if (rowResult.entry.isOrphan || rowResult.updateLabel is null)
+				continue;
+			auto installedAppManifest =
+				Manifest.loadFromAppDir(rowResult.entry.appDirectory);
+			bool available = installedAppManifest !is null
+				&& installedAppManifest.updateAvailable;
+			if (installedAppManifest !is null)
+				rowResult.entry.updateInfo = installedAppManifest.updateInfo;
+			rowResult.entry.updateAvailable = available;
+			rowResult.updateLabel.setVisible(available);
+			if (available && rowResult.entry.updateInfo.length)
+				updateCount++;
+		}
+		this.updateAllSection.countLabel.setText(
+			L("manage.update_all.subtitle", updateCount));
+		this.updateAllSection.revealer.setRevealChild(updateCount >= 2);
+	}
+
 	this(App app) {
 		super(app);
 		this.setResizable(true);
@@ -289,6 +346,8 @@ class ManageWindow : AppWindow {
 
 		writeln("ManageWindow: scanning installed apps");
 		this.installedApps = scanInstalledApps();
+		if (restoreMissingIcons(this.installedApps))
+			this.installedApps = scanInstalledApps();
 		this.installerUpdateVersion = readInstallerUpdateVersion();
 	}
 
@@ -654,7 +713,6 @@ class ManageWindow : AppWindow {
 		UpdateAllSection section,
 		AppRowResult[] results) {
 		AppRowResult[] capturedForAll = results;
-		Revealer capturedUpdateAllRevealer = section.revealer;
 		Button capturedUpdateAllButton = section.button;
 		section.button.connectClicked(() {
 			int updatable = 0;
@@ -679,8 +737,7 @@ class ManageWindow : AppWindow {
 					remaining,
 					capturedUpdateAllButton,
 					this.checkButton,
-					capturedUpdateAllRevealer,
-					capturedForAll,
+					this,
 					() => cast(bool) atomicLoad(this.workCancelled));
 			}
 		});
@@ -688,13 +745,10 @@ class ManageWindow : AppWindow {
 
 	private void wireCheckButton(
 		AppRowResult[] results,
-		InstallerUpdateSection installerSection,
-		UpdateAllSection updateAllSection) {
+		InstallerUpdateSection installerSection) {
 		AppRowResult[] capturedForCheck = results;
 		Revealer capturedInstallerRevealer = installerSection.revealer;
 		Label capturedInstallerSubLabel = installerSection.subLabel;
-		Label capturedUpdateAllCountLabel = updateAllSection.countLabel;
-		Revealer capturedUpdateAllRevealer = updateAllSection.revealer;
 		this.checkButton.connectClicked(() {
 			auto checkingBox = new Box(Orientation.Horizontal, ManageLayout.contentRowSpacing);
 			auto checkSpinner = new Spinner;
@@ -711,12 +765,21 @@ class ManageWindow : AppWindow {
 						continue;
 					string error;
 					bool available = checkOneApp(appRowResult.entry, error);
-					if (error.length)
-						continue;
-					Label capturedLabel = appRowResult.updateLabel;
+					Label capturedStatusLabel = appRowResult.updateStatusLabel;
 					string capturedDir = appRowResult.entry.appDirectory;
 					bool capturedAvailable = available;
+					string capturedError = error;
 					idleAdd(PRIORITY_DEFAULT, () {
+						// A failed check keeps the saved flag and shows the error on the row
+						if (capturedError.length) {
+							capturedStatusLabel.addCssClass("warning");
+							capturedStatusLabel.setText(
+							L("manage.check.failed", capturedError));
+							capturedStatusLabel.show();
+							return false;
+						}
+						capturedStatusLabel.hide();
+						capturedStatusLabel.removeCssClass("warning");
 						auto installedAppManifest =
 						Manifest.loadFromAppDir(capturedDir);
 						if (installedAppManifest !is null
@@ -726,7 +789,6 @@ class ManageWindow : AppWindow {
 							capturedAvailable;
 							installedAppManifest.save();
 						}
-						capturedLabel.setVisible(capturedAvailable);
 						return false;
 					});
 				}
@@ -745,13 +807,7 @@ class ManageWindow : AppWindow {
 						L("manage.installer.update.version", capturedLatestVer));
 						capturedInstallerRevealer.setRevealChild(true);
 					}
-					int updateCount = 0;
-					foreach (ref rowResult; capturedForCheck)
-						if (rowResult.updateLabel !is null && rowResult.updateLabel.getVisible())
-							updateCount++;
-					capturedUpdateAllCountLabel.setText(
-					L("manage.update_all.subtitle", updateCount));
-					capturedUpdateAllRevealer.setRevealChild(updateCount >= 2);
+					this.syncUpdateState();
 					auto restoredBox = new Box(Orientation.Horizontal, ManageLayout
 					.contentRowSpacing);
 					restoredBox.append(
@@ -887,8 +943,9 @@ class ManageWindow : AppWindow {
 			});
 		}
 
+		this.updateAllSection = updateAllSection;
 		this.wireUpdateAllButton(updateAllSection, results);
-		this.wireCheckButton(results, installerSection, updateAllSection);
+		this.wireCheckButton(results, installerSection);
 		this.wireRowRevealers(results);
 
 		auto scroll = new ScrolledWindow;

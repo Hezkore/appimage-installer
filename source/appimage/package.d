@@ -425,7 +425,8 @@ class AppImage {
 			if (!exists(resolvedDirIcon))
 				resolvedDirIcon = dirIconPath;
 			if (exists(resolvedDirIcon)) {
-				this.cachedIconExtension = resolvedDirIcon.extension.toLower;
+				this.cachedIconExtension =
+					appimage.icon.iconFileExtension(resolvedDirIcon);
 				try {
 					this.cachedIconBytes = cast(ubyte[]) std.file.read(resolvedDirIcon);
 				} catch (FileException error) {

@@ -30,6 +30,8 @@ class Manifest {
 	string architecture;
 	string updateInfo;
 	string installedIconName;
+	// Installer version that last looked for a missing icon, so apps without one are not retried
+	string iconCheckedVersion;
 	string appDirectory;
 	string desktopSymlink;
 	InstallMethod installMethod = InstallMethod.AppImage;
@@ -77,6 +79,7 @@ class Manifest {
 			manifest.sourceFileModified = field("sourceFileModified");
 			manifest.sourceFileHash = field("sourceFileHash");
 			manifest.installedIconName = field("installedIconName");
+			manifest.iconCheckedVersion = field("iconCheckedVersion");
 			manifest.appDirectory = field("appDirectory");
 			manifest.desktopSymlink = field("desktopSymlink");
 			manifest.updateInfo = field("updateInfo");
@@ -161,6 +164,7 @@ class Manifest {
 		json["architecture"] = this.architecture;
 		json["updateInfo"] = this.updateInfo;
 		json["installedIconName"] = this.installedIconName;
+		json["iconCheckedVersion"] = this.iconCheckedVersion;
 		json["appDirectory"] = this.appDirectory;
 		json["desktopSymlink"] = this.desktopSymlink;
 		json["installMethod"] = this.installMethod.to!string;
