@@ -55,13 +55,13 @@ public bool installInstallerIcon(out string error) {
 	return true;
 }
 
-// Writes the installer .desktop file to destPath, a hidden background updater entry next to it
-// and its icon, always overwriting
+// Writes the installer .desktop file to destPath and its icon, always overwriting
+// The hidden background updater entry is only kept while the update timer is installed
 public bool writeInstallerDesktopFile(string destPath, out string error) {
 	import std.file : write, FileException, mkdirRecurse, thisExePath;
 	import std.path : dirName;
 	import lang : availableLangs, translateIn;
-	import constants : INSTALLER_ICON_NAME, BGUPDATE_DESKTOP_FILE;
+	import constants : INSTALLER_ICON_NAME;
 
 	if (!installInstallerIcon(error))
 		return false;
@@ -90,7 +90,44 @@ public bool writeInstallerDesktopFile(string destPath, out string error) {
 				~ "MimeType=application/vnd.appimage;"
 				~ "application/x-iso9660-appimage;\n"
 				~ "NoDisplay=false\n");
-		write(buildPath(dirName(destPath), BGUPDATE_DESKTOP_FILE),
+	} catch (FileException fileException) {
+		error = fileException.msg;
+		return false;
+	}
+
+	// Keep the hidden updater entry in sync with the systemd timer
+	string desktopDir = dirName(destPath);
+	if (isSystemdTimerInstalled()) {
+		string bgupdateError;
+		if (!writeBgupdateDesktopFile(desktopDir, bgupdateError)
+			&& bgupdateError.length) {
+			import std.stdio : writeln;
+
+			writeln("apputils: could not write background updater desktop entry: ",
+				bgupdateError);
+		}
+	} else
+		removeBgupdateDesktopFile(desktopDir);
+	return true;
+}
+
+// Writes the hidden background updater desktop entry into desktopDir
+// This entry is only needed while the systemd update timer is installed
+public bool writeBgupdateDesktopFile(string desktopDir, out string error) {
+	import std.file : write, FileException, mkdirRecurse, thisExePath;
+	import lang : availableLangs, translateIn;
+	import constants : INSTALLER_ICON_NAME, BGUPDATE_DESKTOP_FILE;
+
+	string localeNames = "Name=" ~ translateIn("en", "app.name") ~ "\n";
+	foreach (code; availableLangs()) {
+		if (code == "en")
+			continue;
+		localeNames ~= "Name[" ~ code ~ "]=" ~ translateIn(code, "app.name") ~ "\n";
+	}
+
+	try {
+		mkdirRecurse(desktopDir);
+		write(buildPath(desktopDir, BGUPDATE_DESKTOP_FILE),
 			"[Desktop Entry]\n"
 				~ "Type=Application\n"
 				~ localeNames
@@ -102,6 +139,19 @@ public bool writeInstallerDesktopFile(string destPath, out string error) {
 		return false;
 	}
 	return true;
+}
+
+// Removes the hidden background updater desktop entry from desktopDir if present
+public void removeBgupdateDesktopFile(string desktopDir) {
+	import std.file : exists, remove, FileException;
+	import constants : BGUPDATE_DESKTOP_FILE;
+
+	string path = buildPath(desktopDir, BGUPDATE_DESKTOP_FILE);
+	try {
+		if (exists(path))
+			remove(path);
+	} catch (FileException) {
+	}
 }
 
 // Registers desktopFileName as the default handler for both AppImage MIME types

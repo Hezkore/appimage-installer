@@ -12,7 +12,8 @@ import types : AppMode;
 import constants : INSTALLER_VERSION, DESKTOP_PREFIX, DESKTOP_SUFFIX;
 import constants : APPLICATIONS_SUBDIR, MANIFEST_FILE_NAME;
 import apputils : xdgDataHome, homeDir, installBaseDir, writeInstallerDesktopFile, associateAppImages,
-	writeSystemdServiceFile, writeSystemdTimerFile, isAppImageAssociated;
+	writeSystemdServiceFile, writeSystemdTimerFile, isAppImageAssociated,
+	writeBgupdateDesktopFile;
 import constants : INSTALLER_DESKTOP_FILE, INSTALLER_ICON_NAME;
 import appimage : AppImage;
 import appimage.manifest : Manifest;
@@ -216,8 +217,17 @@ AppArgs parseArgs(string[] rawArgs) {
 				import std.stdio : stderr;
 
 				stderr.writeln("Error: ", serviceError);
-			} else
+			} else {
 				writeln(servicePath);
+				string bgupdateError;
+				if (!writeBgupdateDesktopFile(
+						buildPath(xdgDataHome(), "applications"), bgupdateError)
+					&& bgupdateError.length) {
+					import std.stdio : stderr;
+
+					stderr.writeln("Error: ", bgupdateError);
+				}
+			}
 			return result;
 
 		case "--systemd-timer":
