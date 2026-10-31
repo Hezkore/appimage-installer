@@ -18,6 +18,7 @@ import gtk.types : Align, Orientation, SelectionMode;
 import types : InstallMethod;
 import constants : APPLICATIONS_SUBDIR, MANIFEST_FILE_NAME, UPDATE_SUBDIR;
 import constants : DESKTOP_PREFIX, DESKTOP_SUFFIX, INSTALLER_DESKTOP_FILE;
+import constants : BGUPDATE_DESKTOP_FILE;
 import constants : APPIMAGE_EXEC_MODE;
 import appimage.manifest : Manifest;
 import apputils : xdgDataHome, installBaseDir, readDesktopFieldLocalized;
@@ -217,7 +218,8 @@ public InstalledApp[] scanInstalledApps() {
 				continue;
 			if (name[$ - DESKTOP_SUFFIX.length .. $] != DESKTOP_SUFFIX)
 				continue;
-			if (name == INSTALLER_DESKTOP_FILE)
+			if (name == INSTALLER_DESKTOP_FILE
+				|| name == BGUPDATE_DESKTOP_FILE)
 				continue;
 			if (dirEntry.name in knownSymlinks)
 				continue;
