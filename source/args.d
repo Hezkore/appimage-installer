@@ -13,7 +13,7 @@ import constants : INSTALLER_VERSION, DESKTOP_PREFIX, DESKTOP_SUFFIX;
 import constants : APPLICATIONS_SUBDIR, MANIFEST_FILE_NAME;
 import apputils : xdgDataHome, homeDir, installBaseDir, writeInstallerDesktopFile, associateAppImages,
 	writeSystemdServiceFile, writeSystemdTimerFile, isAppImageAssociated,
-	writeBgupdateDesktopFile;
+	syncBgupdateDesktopFile;
 import constants : INSTALLER_DESKTOP_FILE, INSTALLER_ICON_NAME;
 import appimage : AppImage;
 import appimage.manifest : Manifest;
@@ -219,14 +219,8 @@ AppArgs parseArgs(string[] rawArgs) {
 				stderr.writeln("Error: ", serviceError);
 			} else {
 				writeln(servicePath);
-				string bgupdateError;
-				if (!writeBgupdateDesktopFile(
-						buildPath(xdgDataHome(), "applications"), bgupdateError)
-					&& bgupdateError.length) {
-					import std.stdio : stderr;
-
-					stderr.writeln("Error: ", bgupdateError);
-				}
+				syncBgupdateDesktopFile(
+					buildPath(xdgDataHome(), "applications"));
 			}
 			return result;
 
@@ -252,8 +246,11 @@ AppArgs parseArgs(string[] rawArgs) {
 				import std.stdio : stderr;
 
 				stderr.writeln("Error: ", timerError);
-			} else
+			} else {
 				writeln(timerPath);
+				syncBgupdateDesktopFile(
+					buildPath(xdgDataHome(), "applications"));
+			}
 			return result;
 
 		case "--associate":

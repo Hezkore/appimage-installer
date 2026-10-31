@@ -37,7 +37,7 @@ import appimage.manifest : Manifest;
 import apputils : installBaseDir, readConfigGithubToken, writeConfigGithubToken,
 	readConfigInstallDir, writeConfigInstallDir, xdgDataHome,
 	isSystemdTimerInstalled, systemdUserDir, writeSystemdServiceFile,
-	writeSystemdTimerFile, writeBgupdateDesktopFile, removeBgupdateDesktopFile,
+	writeSystemdTimerFile, syncBgupdateDesktopFile,
 	readConfigTimerIntervalHours, writeConfigTimerIntervalHours,
 	readConfigCheckIntervalHours, writeConfigCheckIntervalHours,
 	readConfigAutoUpdate, writeConfigAutoUpdate, writeInstallerUpdateFlag;
@@ -607,13 +607,7 @@ public Box buildSettingsBox(
 			} catch (FileException) {
 			}
 		}
-		if (newEnabled) {
-			string bgupdateError;
-			if (!writeBgupdateDesktopFile(applicationsDir, bgupdateError)
-				&& bgupdateError.length)
-				writeln("settings: ", bgupdateError);
-		} else
-			removeBgupdateDesktopFile(applicationsDir);
+		syncBgupdateDesktopFile(applicationsDir);
 		writeConfigTimerIntervalHours(newTimerHours);
 		writeConfigCheckIntervalHours(newFetchHours);
 		writeConfigAutoUpdate(newAutoUpdateValue);

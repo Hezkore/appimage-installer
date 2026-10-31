@@ -96,24 +96,29 @@ public bool writeInstallerDesktopFile(string destPath, out string error) {
 	}
 
 	// Keep the hidden updater entry in sync with the systemd timer
-	string desktopDir = dirName(destPath);
-	if (isSystemdTimerInstalled()) {
-		string bgupdateError;
-		if (!writeBgupdateDesktopFile(desktopDir, bgupdateError)
-			&& bgupdateError.length) {
-			import std.stdio : writeln;
-
-			writeln("apputils: could not write background updater desktop entry: ",
-				bgupdateError);
-		}
-	} else
-		removeBgupdateDesktopFile(desktopDir);
+	syncBgupdateDesktopFile(dirName(destPath));
 	return true;
+}
+
+// Writes or removes the hidden background updater desktop entry based on
+// whether the systemd update timer is installed
+public void syncBgupdateDesktopFile(string desktopDir) {
+	if (!isSystemdTimerInstalled()) {
+		removeBgupdateDesktopFile(desktopDir);
+		return;
+	}
+
+	string error;
+	if (!writeBgupdateDesktopFile(desktopDir, error) && error.length) {
+		import std.stdio : writeln;
+
+		writeln("apputils: could not write background updater desktop entry: ", error);
+	}
 }
 
 // Writes the hidden background updater desktop entry into desktopDir
 // This entry is only needed while the systemd update timer is installed
-public bool writeBgupdateDesktopFile(string desktopDir, out string error) {
+private bool writeBgupdateDesktopFile(string desktopDir, out string error) {
 	import std.file : write, FileException, mkdirRecurse, thisExePath;
 	import lang : availableLangs, translateIn;
 	import constants : INSTALLER_ICON_NAME, BGUPDATE_DESKTOP_FILE;
@@ -142,7 +147,7 @@ public bool writeBgupdateDesktopFile(string desktopDir, out string error) {
 }
 
 // Removes the hidden background updater desktop entry from desktopDir if present
-public void removeBgupdateDesktopFile(string desktopDir) {
+private void removeBgupdateDesktopFile(string desktopDir) {
 	import std.file : exists, remove, FileException;
 	import constants : BGUPDATE_DESKTOP_FILE;
 
