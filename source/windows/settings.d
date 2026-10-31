@@ -37,7 +37,8 @@ import appimage.manifest : Manifest;
 import apputils : installBaseDir, readConfigGithubToken, writeConfigGithubToken,
 	readConfigInstallDir, writeConfigInstallDir, xdgDataHome,
 	isSystemdTimerInstalled, systemdUserDir, writeSystemdServiceFile,
-	writeSystemdTimerFile, readConfigTimerIntervalHours, writeConfigTimerIntervalHours,
+	writeSystemdTimerFile, syncBgupdateDesktopFile,
+	readConfigTimerIntervalHours, writeConfigTimerIntervalHours,
 	readConfigCheckIntervalHours, writeConfigCheckIntervalHours,
 	readConfigAutoUpdate, writeConfigAutoUpdate, writeInstallerUpdateFlag;
 import constants : APPLICATIONS_SUBDIR, DESKTOP_SUFFIX, DESKTOP_PREFIX, INSTALLER_VERSION;
@@ -567,6 +568,7 @@ public Box buildSettingsBox(
 			svcDir, "appimage-installer-update.service");
 		string timerPath = buildPath(
 			svcDir, "appimage-installer-update.timer");
+		string applicationsDir = buildPath(xdgDataHome(), "applications");
 		if (newEnabled) {
 			string svcError;
 			writeSystemdServiceFile(
@@ -605,6 +607,7 @@ public Box buildSettingsBox(
 			} catch (FileException) {
 			}
 		}
+		syncBgupdateDesktopFile(applicationsDir);
 		writeConfigTimerIntervalHours(newTimerHours);
 		writeConfigCheckIntervalHours(newFetchHours);
 		writeConfigAutoUpdate(newAutoUpdateValue);
