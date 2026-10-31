@@ -55,36 +55,36 @@ public bool installInstallerIcon(out string error) {
 	return true;
 }
 
+// Builds a desktop file key line in English plus one line per other language
+private string localizedDesktopField(string key, string translationKey) {
+	import lang : availableLangs, translateIn;
+
+	string lines = key ~ "=" ~ translateIn("en", translationKey) ~ "\n";
+	foreach (code; availableLangs()) {
+		if (code == "en")
+			continue;
+		lines ~= key ~ "[" ~ code ~ "]=" ~ translateIn(code, translationKey) ~ "\n";
+	}
+	return lines;
+}
+
 // Writes the installer .desktop file to destPath and its icon, always overwriting
 // The hidden background updater entry is only kept while the update timer is installed
 public bool writeInstallerDesktopFile(string destPath, out string error) {
 	import std.file : write, FileException, mkdirRecurse, thisExePath;
 	import std.path : dirName;
-	import lang : availableLangs, translateIn;
 	import constants : INSTALLER_ICON_NAME;
 
 	if (!installInstallerIcon(error))
 		return false;
-
-	string baseName = translateIn("en", "app.name");
-	string baseDesc = translateIn("en", "app.description");
-
-	string localeNames = "Name=" ~ baseName ~ "\n";
-	string localeDescs = "Comment=" ~ baseDesc ~ "\n";
-	foreach (code; availableLangs()) {
-		if (code == "en")
-			continue;
-		localeNames ~= "Name[" ~ code ~ "]=" ~ translateIn(code, "app.name") ~ "\n";
-		localeDescs ~= "Comment[" ~ code ~ "]=" ~ translateIn(code, "app.description") ~ "\n";
-	}
 
 	try {
 		mkdirRecurse(dirName(destPath));
 		write(destPath,
 			"[Desktop Entry]\n"
 				~ "Type=Application\n"
-				~ localeNames
-				~ localeDescs
+				~ localizedDesktopField("Name", "app.name")
+				~ localizedDesktopField("Comment", "app.description")
 				~ "Icon=" ~ INSTALLER_ICON_NAME ~ "\n"
 				~ "Exec=" ~ thisExePath() ~ " %f\n"
 				~ "MimeType=application/vnd.appimage;"
@@ -120,22 +120,14 @@ public void syncBgupdateDesktopFile(string desktopDir) {
 // This entry is only needed while the systemd update timer is installed
 private bool writeBgupdateDesktopFile(string desktopDir, out string error) {
 	import std.file : write, FileException, mkdirRecurse, thisExePath;
-	import lang : availableLangs, translateIn;
 	import constants : INSTALLER_ICON_NAME, BGUPDATE_DESKTOP_FILE;
-
-	string localeNames = "Name=" ~ translateIn("en", "app.name") ~ "\n";
-	foreach (code; availableLangs()) {
-		if (code == "en")
-			continue;
-		localeNames ~= "Name[" ~ code ~ "]=" ~ translateIn(code, "app.name") ~ "\n";
-	}
 
 	try {
 		mkdirRecurse(desktopDir);
 		write(buildPath(desktopDir, BGUPDATE_DESKTOP_FILE),
 			"[Desktop Entry]\n"
 				~ "Type=Application\n"
-				~ localeNames
+				~ localizedDesktopField("Name", "app.name")
 				~ "Icon=" ~ INSTALLER_ICON_NAME ~ "\n"
 				~ "Exec=" ~ thisExePath() ~ " --background-update\n"
 				~ "NoDisplay=true\n");
@@ -155,7 +147,11 @@ private void removeBgupdateDesktopFile(string desktopDir) {
 	try {
 		if (exists(path))
 			remove(path);
-	} catch (FileException) {
+	} catch (FileException fileException) {
+		import std.stdio : writeln;
+
+		writeln("apputils: could not remove background updater desktop entry: ",
+			fileException.msg);
 	}
 }
 

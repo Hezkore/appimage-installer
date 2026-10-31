@@ -217,11 +217,8 @@ AppArgs parseArgs(string[] rawArgs) {
 				import std.stdio : stderr;
 
 				stderr.writeln("Error: ", serviceError);
-			} else {
+			} else
 				writeln(servicePath);
-				syncBgupdateDesktopFile(
-					buildPath(xdgDataHome(), "applications"));
-			}
 			return result;
 
 		case "--systemd-timer":
