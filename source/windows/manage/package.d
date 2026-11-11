@@ -135,7 +135,7 @@ private bool refreshStaleApps(InstalledApp[] apps) {
 	import std.file : exists;
 	import std.path : buildPath;
 	import std.stdio : writeln;
-	import appimage.install : refreshDesktopActions, startDesktopDatabaseUpdate;
+	import appimage.install : refreshDesktopActionNames, startDesktopDatabaseUpdate;
 	import apputils : xdgDataHome;
 	import constants : APPLICATIONS_SUBDIR, DESKTOP_SUFFIX, INSTALLER_VERSION;
 	import types : InstallMethod;
@@ -149,7 +149,7 @@ private bool refreshStaleApps(InstalledApp[] apps) {
 	foreach (ref app; apps) {
 		if (app.isOrphan)
 			continue;
-		desktopFilesChanged |= refreshDesktopActions(buildPath(
+		desktopFilesChanged |= refreshDesktopActionNames(buildPath(
 				app.appDirectory, APPLICATIONS_SUBDIR, app.sanitizedName ~ DESKTOP_SUFFIX));
 		if (app.installMethod != InstallMethod.AppImage)
 			continue;

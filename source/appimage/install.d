@@ -305,21 +305,19 @@ private bool isOwnDesktopAction(string sectionHeader) {
 	return OWN_DESKTOP_ACTIONS[].any!(action => action.header == sectionHeader);
 }
 
-// The lines of one of our actions, named in every language we ship
-// The command points at the desktop file inside the app directory so the manager can find the app
-private string[] desktopActionLines(OwnDesktopAction action, string desktopFilePath) {
-	string[] lines = ["Name=" ~ translateIn("en", action.nameKey)];
+// The Name lines of one of our actions, in every language we ship
+private string[] desktopActionNameLines(string nameKey) {
+	string[] lines = ["Name=" ~ translateIn("en", nameKey)];
 	foreach (locale; availableLangs())
 		if (locale != "en")
-			lines ~= "Name[" ~ locale ~ "]=" ~ translateIn(locale, action.nameKey);
-	lines ~= "Exec=" ~ thisExePath() ~ " " ~ action.flag ~ " " ~ desktopFilePath;
+			lines ~= "Name[" ~ locale ~ "]=" ~ translateIn(locale, nameKey);
 	return lines;
 }
 
-// Brings our actions in an existing desktop file up to date, such as after
-// their names changed or this installer moved
+// Brings the names of our actions in an existing desktop file up to date
+// The commands stay as they are, so another copy of this installer never takes the actions over
 // Returns true when the file changed
-public bool refreshDesktopActions(string desktopPath) {
+public bool refreshDesktopActionNames(string desktopPath) {
 	string raw;
 	try {
 		raw = readText(desktopPath);
@@ -327,6 +325,7 @@ public bool refreshDesktopActions(string desktopPath) {
 		return false;
 	}
 	bool inOwnAction = false;
+	bool hasOwnAction = false;
 	string[] result;
 	foreach (line; raw.splitLines()) {
 		string stripped = line.strip();
@@ -337,25 +336,28 @@ public bool refreshDesktopActions(string desktopPath) {
 				if (stripped != action.header)
 					continue;
 				inOwnAction = true;
-				result ~= desktopActionLines(action, desktopPath);
+				hasOwnAction = true;
+				result ~= desktopActionNameLines(action.nameKey);
 			}
 			continue;
 		}
-		if (inOwnAction && (stripped.startsWith("Name=") || stripped.startsWith("Name[")
-				|| stripped.startsWith("Exec=")))
+		if (inOwnAction && (stripped.startsWith("Name=") || stripped.startsWith("Name[")))
 			continue;
 		result ~= line;
 	}
+	// A file without our actions is not ours to fix here, and may be one that is being written right now
+	if (!hasOwnAction)
+		return false;
 	string refreshed = result.join("\n") ~ "\n";
 	if (refreshed == raw)
 		return false;
 	try {
 		write(desktopPath, refreshed);
 	} catch (FileException error) {
-		writeln("refreshDesktopActions: write failed: ", error.msg);
+		writeln("refreshDesktopActionNames: write failed: ", error.msg);
 		return false;
 	}
-	writeln("Desktop actions refreshed: ", desktopPath);
+	writeln("Desktop action names refreshed: ", desktopPath);
 	return true;
 }
 
@@ -442,7 +444,9 @@ public void writeDesktopFile(
 	foreach (action; OWN_DESKTOP_ACTIONS) {
 		outputLines ~= "";
 		outputLines ~= action.header;
-		outputLines ~= desktopActionLines(action, desktopFilePath);
+		outputLines ~= desktopActionNameLines(action.nameKey);
+		// Points at the desktop file inside the app directory so the manager can find the app
+		outputLines ~= "Exec=" ~ thisExePath() ~ " " ~ action.flag ~ " " ~ desktopFilePath;
 	}
 
 	try {

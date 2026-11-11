@@ -34,14 +34,14 @@ import windows.base : ACTION_BTN_WIDTH, ACTION_BTN_HEIGHT, ANIM_DURATION_MS;
 import windows.base : CONTENT_REVEAL_DELAY_MS, ACTION_REVEAL_DELAY_MS;
 import windows.addupdate : buildAddUpdateMethodBox;
 import update.directlink : isDirectLink, extractDirectLinkUrl, performDirectLinkUpdate;
-import update.zsync : isZsync, extractZsyncUrl, performZsyncUpdate, checkZsyncForUpdate;
-import update.githubzsync : isGitHubZsync, checkGitHubZsyncForUpdate, performGitHubZsyncUpdate;
-import update.githubrelease : isGitHubRelease, checkGitHubReleaseForUpdate, performGitHubReleaseUpdate;
-import update.githublinuxmanifest : isGitHubLinuxManifest, checkGitHubLinuxManifestForUpdate;
-import update.githublinuxmanifest : performGitHubLinuxManifestUpdate;
-import update.pling : isPling, checkPlingForUpdate, performPlingUpdate;
+import update.zsync : isZsync, extractZsyncUrl, performZsyncUpdate;
+import update.githubzsync : isGitHubZsync, performGitHubZsyncUpdate;
+import update.githubrelease : isGitHubRelease, performGitHubReleaseUpdate;
+import update.githublinuxmanifest : isGitHubLinuxManifest, performGitHubLinuxManifestUpdate;
+import update.pling : isPling, performPlingUpdate;
 import update.common : readManifestFields, retryInstallAfterSig,
-	parseUpdateMethodKind, UpdateMethodKind, reapplyIfFileChanged;
+	parseUpdateMethodKind, UpdateMethodKind;
+import update.checker : checkForUpdate;
 import types : InstallMethod;
 import appimage.manifest : Manifest;
 import lang : L;
@@ -774,38 +774,9 @@ class UpdateWindow : AppWindow {
 
 	override void loadWindow() {
 		auto startTime = MonoTime.currTime;
-		reapplyIfFileChanged(this.appDirectory, this.sanitizedName);
-		final switch (parseUpdateMethodKind(this.updateInfo)) {
-		case UpdateMethodKind.DirectLink:
-		case UpdateMethodKind.Unknown:
-			break;
-		case UpdateMethodKind.Zsync:
-			checkZsyncForUpdate(this.appDirectory, this.sanitizedName,
-				extractZsyncUrl(this.updateInfo), this.updateAvailable,
-				this.updateCheckError,
-				() => cast(bool) atomicLoad(this.workCancelled));
-			break;
-		case UpdateMethodKind.GitHubZsync:
-			checkGitHubZsyncForUpdate(this.appDirectory, this.sanitizedName,
-				this.updateInfo, this.updateAvailable, this.updateCheckError,
-				() => cast(bool) atomicLoad(this.workCancelled));
-			break;
-		case UpdateMethodKind.GitHubRelease:
-			checkGitHubReleaseForUpdate(this.appDirectory,
-				this.updateInfo, this.updateAvailable, this.updateCheckError,
-				() => cast(bool) atomicLoad(this.workCancelled));
-			break;
-		case UpdateMethodKind.GitHubLinuxManifest:
-			checkGitHubLinuxManifestForUpdate(this.appDirectory,
-				this.updateInfo, this.updateAvailable, this.updateCheckError,
-				() => cast(bool) atomicLoad(this.workCancelled));
-			break;
-		case UpdateMethodKind.PlingV1Zsync:
-			checkPlingForUpdate(this.appDirectory, this.sanitizedName,
-				this.updateInfo, this.updateAvailable, this.updateCheckError,
-				() => cast(bool) atomicLoad(this.workCancelled));
-			break;
-		}
+		checkForUpdate(this.appDirectory, this.sanitizedName, this.updateInfo,
+			this.updateAvailable, this.updateCheckError,
+			() => cast(bool) atomicLoad(this.workCancelled));
 		auto installedAppManifest =
 			Manifest.loadFromAppDir(this.appDirectory);
 		if (installedAppManifest !is null) {

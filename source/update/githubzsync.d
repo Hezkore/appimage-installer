@@ -28,11 +28,20 @@ public bool isGitHubZsync(string updateInfo) {
 	return parseUpdateMethodKind(updateInfo) == UpdateMethodKind.GitHubZsync;
 }
 
-// Resolves the .zsync asset URL via the GitHub API using the gh-releases-zsync info string
+// Which file of a release to find: the .zsync asset, or the AppImage it describes
+private enum AssetKind {
+	zsync,
+	appImage,
+}
+
+// Resolves the download URL of one asset in the release that the gh-releases-zsync info string names
+// With several builds in the release, the build the app was installed from is taken
 // Returns false and sets error on failure
-private bool resolveGitHubZsyncUrl(
+private bool resolveReleaseAsset(
 	string updateInfo,
-	out string metadataUrl,
+	string appDirectory,
+	AssetKind kind,
+	out string assetUrl,
 	out string error,
 	bool delegate() shouldCancel = null) {
 	auto fields = normalizeUpdateInfoPattern(updateInfo)[PREFIX.length .. $].split("|");
@@ -44,6 +53,8 @@ private bool resolveGitHubZsyncUrl(
 	string repositoryName = fields[1].strip();
 	string tag = fields[2].strip();
 	string assetPattern = fields[3].strip();
+	if (kind == AssetKind.appImage && assetPattern.endsWith(ZSYNC_EXTENSION))
+		assetPattern = assetPattern[0 .. $ - ZSYNC_EXTENSION.length];
 
 	writeln(
 		"ghzsync: resolving for ", ownerName, "/", repositoryName, "@", tag);
@@ -57,32 +68,45 @@ private bool resolveGitHubZsyncUrl(
 			shouldCancel))
 		return false;
 
+	string[] assetNames;
+	string[string] urlOfAsset;
 	if (auto assetsPointer = "assets" in releaseJson) {
 		foreach (asset; assetsPointer.array) {
 			string name = asset["name"].str;
-			if (assetMatchesHost(name, assetPattern)) {
-				metadataUrl = asset["browser_download_url"].str;
-				writeln("ghzsync: resolved to ", metadataUrl);
-				return true;
-			}
+			if (!assetMatchesHost(name, assetPattern))
+				continue;
+			assetNames ~= name;
+			urlOfAsset[name] = asset["browser_download_url"].str;
 		}
 	}
+	if (!assetNames.length) {
+		error = "No asset matching '" ~ assetPattern ~ "' in release "
+			~ tag ~ " of " ~ ownerName ~ "/" ~ repositoryName;
+		return false;
+	}
 
-	error = "No asset matching '" ~ assetPattern ~ "' in release "
-		~ tag ~ " of " ~ ownerName ~ "/" ~ repositoryName;
-	return false;
+	auto installedAppManifest = Manifest.loadFromAppDir(appDirectory);
+	string picked = pickAssetForInstalledFile(
+		assetNames, installedAppManifest is null ? "" : installedAppManifest.sourceFileName);
+	// With no name to tell several builds apart only the pattern decides, so the first listed is taken
+	if (!picked.length)
+		picked = assetNames[0];
+	assetUrl = urlOfAsset[picked];
+	writeln("ghzsync: resolved to ", assetUrl);
+	return true;
 }
 
-// Picks the .zsync asset that belongs to the installed AppImage file
+// Picks the asset that belongs to the installed AppImage file, by its name without the version
 // A release can hold several builds of one app, so only a lone asset or a name match is certain
-private string pickZsyncAsset(const string[] assetNames, string installedFileName) {
+private string pickAssetForInstalledFile(const string[] assetNames, string installedFileName) {
 	if (assetNames.length == 1)
 		return assetNames[0];
 	if (!installedFileName.length)
 		return "";
 	foreach (name; assetNames) {
-		string appImageName = name[0 .. $ - ZSYNC_EXTENSION.length].stripExtension;
-		if (withoutVersion(appImageName) == withoutVersion(installedFileName))
+		string appImageFile = name.endsWith(ZSYNC_EXTENSION)
+			? name[0 .. $ - ZSYNC_EXTENSION.length] : name;
+		if (withoutVersion(appImageFile.stripExtension) == withoutVersion(installedFileName))
 			return name;
 	}
 	return "";
@@ -112,7 +136,7 @@ public bool findGitHubZsyncAsset(
 				assetNames ~= name;
 		}
 	}
-	assetName = pickZsyncAsset(assetNames, installedFileName);
+	assetName = pickAssetForInstalledFile(assetNames, installedFileName);
 	writeln("ghzsync: ", assetNames.length, " zsync asset(s) for this machine, picked '", assetName, "'");
 	return true;
 }
@@ -127,8 +151,10 @@ public bool checkGitHubZsyncForUpdate(
 	out string error,
 	bool delegate() shouldCancel = null) {
 	string metadataUrl;
-	if (!resolveGitHubZsyncUrl(
+	if (!resolveReleaseAsset(
 			updateInfo,
+			appDirectory,
+			AssetKind.zsync,
 			metadataUrl,
 			error,
 			shouldCancel))
@@ -150,43 +176,6 @@ private enum FallbackProgress {
 	complete = 1.0,
 }
 
-// Finds the AppImage asset URL in the same release, used as a fallback when zsync fails
-// The pattern is derived by stripping ".zsync" from the zsync asset pattern
-private bool resolveFallbackAsset(
-	string updateInfo,
-	out string assetUrl,
-	out string error,
-	bool delegate() shouldCancel = null) {
-	auto fields = normalizeUpdateInfoPattern(updateInfo)[PREFIX.length .. $].split("|");
-	if (fields.length != 4)
-		return false;
-	string ownerName = fields[0].strip();
-	string repositoryName = fields[1].strip();
-	string tag = fields[2].strip();
-	string zsyncPattern = fields[3].strip();
-	string appimagePattern = zsyncPattern.endsWith(ZSYNC_EXTENSION)
-		? zsyncPattern[0 .. $ - ZSYNC_EXTENSION.length] : zsyncPattern;
-
-	JSONValue releaseJson;
-	if (!fetchGitHubRelease(
-			ownerName, repositoryName, tag, releaseJson, error, shouldCancel))
-		return false;
-
-	if (auto assetsPointer = "assets" in releaseJson) {
-		foreach (asset; assetsPointer.array) {
-			string name = asset["name"].str;
-			if (assetMatchesHost(name, appimagePattern)) {
-				assetUrl = asset["browser_download_url"].str;
-				writeln("ghzsync: fallback asset resolved to ", assetUrl);
-				return true;
-			}
-		}
-	}
-	error = "No fallback asset matching '" ~ appimagePattern
-		~ "' in release " ~ tag ~ " of " ~ ownerName ~ "/" ~ repositoryName;
-	return false;
-}
-
 // Downloads the full AppImage directly as a fallback when zsync fails
 private bool performFallbackDownload(
 	string appDirectory,
@@ -206,7 +195,8 @@ private bool performFallbackDownload(
 	progress = FallbackProgress.afterManifest;
 
 	string assetUrl;
-	if (!resolveFallbackAsset(updateInfo, assetUrl, errorMessage, shouldCancel))
+	if (!resolveReleaseAsset(
+			updateInfo, appDirectory, AssetKind.appImage, assetUrl, errorMessage, shouldCancel))
 		return false;
 
 	progress = FallbackProgress.afterResolve;
@@ -261,8 +251,10 @@ public bool performGitHubZsyncUpdate(
 	bool delegate() shouldCancel = null,
 	bool force = false) {
 	string metadataUrl;
-	if (!resolveGitHubZsyncUrl(
+	if (!resolveReleaseAsset(
 			updateInfo,
+			appDirectory,
+			AssetKind.zsync,
 			metadataUrl,
 			errorMessage,
 			shouldCancel))
@@ -298,9 +290,23 @@ unittest {
 // With several builds in one release, only the build that was installed is picked
 unittest {
 	string[] builds = ["App-1.1-x86_64.AppImage.zsync", "App-legacy-1.1-x86_64.AppImage.zsync"];
-	assert(pickZsyncAsset(builds, "App-legacy-1.0-x86_64") == builds[1]);
-	assert(pickZsyncAsset(builds, "App-1.0-x86_64") == builds[0]);
-	assert(pickZsyncAsset(builds, "renamed") == "");
-	assert(pickZsyncAsset(builds[0 .. 1], "renamed") == builds[0]);
-	assert(pickZsyncAsset([], "App-1.0-x86_64") == "");
+	assert(pickAssetForInstalledFile(builds, "App-legacy-1.0-x86_64") == builds[1]);
+	assert(pickAssetForInstalledFile(builds, "App-1.0-x86_64") == builds[0]);
+	assert(pickAssetForInstalledFile(builds, "renamed") == "");
+	assert(pickAssetForInstalledFile(builds[0 .. 1], "renamed") == builds[0]);
+	assert(pickAssetForInstalledFile([], "App-1.0-x86_64") == "");
+	string[] appImages = ["App-1.1-x86_64.AppImage", "App-legacy-1.1-x86_64.AppImage"];
+	assert(pickAssetForInstalledFile(appImages, "App-legacy-1.0-x86_64") == appImages[1]);
+}
+
+// Build numbers and commit hashes in a name change with each release, like versions do
+unittest {
+	string patternOf(string assetName) {
+		return normalizeUpdateInfoPattern(PREFIX ~ "owner|repository|latest|" ~ assetName).split("|")[$ - 1];
+	}
+
+	assert(patternOf("App-38314-x86_64.AppImage.zsync") == "App-*-x86_64.AppImage.zsync");
+	assert(patternOf("App_0.9_b5f46e3.AppImage.zsync") == "App_*_*.AppImage.zsync");
+	assert(patternOf("App-qt6-i686.AppImage.zsync") == "App-qt6-i686.AppImage.zsync");
+	assert(patternOf("App-aarch64.AppImage.zsync") == "App-aarch64.AppImage.zsync");
 }

@@ -21,8 +21,10 @@ import types : InstallMethod;
 import constants : APPIMAGE_EXEC_MODE, APPLICATIONS_SUBDIR, DESKTOP_SUFFIX,
 	HTTP_SUCCESS_MIN, HTTP_SUCCESS_MAX;
 
-// A version number inside a file name, such as 2.25.5
-private enum string VERSION_TOKEN = r"\d+(?:\.\d+)+";
+// The part of a file name that changes with each release: a version such as 2.25.5,
+// a build number of four or more digits, or a commit hash
+private enum string VERSION_TOKEN =
+	r"\d+(?:\.\d+)+|(?<![A-Za-z0-9])(?:\d{4,}|(?=[0-9a-f]*\d)[0-9a-f]{7,40})(?![A-Za-z0-9])";
 
 // Removes version numbers from a file name, so two releases of one build compare equal
 public string withoutVersion(string fileName) {
@@ -143,8 +145,8 @@ public void makeExecutable(string path) {
 	setAttributes(path, APPIMAGE_EXEC_MODE);
 }
 
-// Remounts the AppImage to refresh its icon and rewrites the desktop file
-// with the Update and Uninstall actions then saves the icon name to the manifest
+// Remounts the AppImage to refresh its icon and version, and rewrites the desktop file
+// with the Update and Uninstall actions
 public void reapplyAppIntegration(
 	string appImagePath,
 	string appDirectory,
@@ -153,20 +155,17 @@ public void reapplyAppIntegration(
 
 	string metaDir = buildPath(appDirectory, APPLICATIONS_SUBDIR);
 	string desktopPath = buildPath(metaDir, sanitizedName ~ DESKTOP_SUFFIX);
+	// Taken before the read, so a file replaced while we read counts as changed next time
+	string stampBeforeRead = fileStamp(appImagePath);
 
-	auto installedAppManifest = Manifest.loadFromAppDir(appDirectory);
-	// Saved on every way out, so a file we cannot read is not read again until it changes
-	scope (exit)
-		if (installedAppManifest !is null)
-			installedAppManifest.save();
 	auto updatedApp = new AppImage(appImagePath);
 	updatedApp.sanitizedName = sanitizedName;
 	updatedApp.installMethod = InstallMethod.AppImage;
-	if (installedAppManifest !is null) {
-		installedAppManifest.installedFileStamp = fileStamp(appImagePath);
-		updatedApp.installedIconName = installedAppManifest.installedIconName;
-		updatedApp.portableHome = installedAppManifest.portableHome;
-		updatedApp.portableConfig = installedAppManifest.portableConfig;
+	auto manifestBeforeRead = Manifest.loadFromAppDir(appDirectory);
+	if (manifestBeforeRead !is null) {
+		updatedApp.installedIconName = manifestBeforeRead.installedIconName;
+		updatedApp.portableHome = manifestBeforeRead.portableHome;
+		updatedApp.portableConfig = manifestBeforeRead.portableConfig;
 	}
 
 	try {
@@ -174,27 +173,34 @@ public void reapplyAppIntegration(
 		updatedApp.loadFullInfo();
 	} catch (ErrnoException error) {
 		writeln("update: could not load new AppImage info: ", error.msg);
-		return;
 	} catch (ErrorWrap error) {
 		writeln("update: could not load new AppImage info: ", error.msg);
-		return;
 	} catch (ProcessException error) {
 		writeln("update: could not load new AppImage info: ", error.msg);
-		return;
+	} catch (FileException error) {
+		writeln("update: could not load new AppImage info: ", error.msg);
 	}
 
-	if (updatedApp.cachedIconBytes.length)
-		installIconFromCachedData(updatedApp);
+	// An AppImage we could not read keeps the desktop file and icon it has
+	if (updatedApp.isFullyLoaded) {
+		if (updatedApp.cachedIconBytes.length)
+			installIconFromCachedData(updatedApp);
+		writeDesktopFile(updatedApp, desktopPath, "", appImagePath);
+	}
 
-	writeDesktopFile(updatedApp, desktopPath, "", appImagePath);
-
-	if (installedAppManifest !is null) {
+	// Loaded again so nothing saved while the AppImage was mounted is lost
+	auto installedAppManifest = Manifest.loadFromAppDir(appDirectory);
+	if (installedAppManifest is null)
+		return;
+	// Saved for an unreadable file too, so that file is not read again until it changes
+	installedAppManifest.installedFileStamp = stampBeforeRead;
+	if (updatedApp.isFullyLoaded) {
 		if (updatedApp.installedIconName.length)
-			installedAppManifest.installedIconName =
-				updatedApp.installedIconName;
+			installedAppManifest.installedIconName = updatedApp.installedIconName;
 		if (updatedApp.releaseVersion.length)
 			installedAppManifest.releaseVersion = updatedApp.releaseVersion;
 	}
+	installedAppManifest.save();
 }
 
 // Reads an app's details again when its AppImage was replaced from outside, such as by the app's own updater
@@ -204,8 +210,17 @@ public bool reapplyIfFileChanged(string appDirectory, string sanitizedName) {
 	if (installedAppManifest is null || installedAppManifest.installMethod != InstallMethod.AppImage)
 		return false;
 	string appImagePath = buildPath(appDirectory, sanitizedName ~ ".AppImage");
-	if (!exists(appImagePath) || installedAppManifest.installedFileStamp == fileStamp(appImagePath))
+	if (!exists(appImagePath))
 		return false;
+	string currentStamp = fileStamp(appImagePath);
+	if (installedAppManifest.installedFileStamp == currentStamp)
+		return false;
+	// An install from before stamps existed has nothing to compare with, so it starts from the file as it is
+	if (!installedAppManifest.installedFileStamp.length) {
+		installedAppManifest.installedFileStamp = currentStamp;
+		installedAppManifest.save();
+		return false;
+	}
 	writeln("update: ", appImagePath, " changed since it was last read");
 	reapplyAppIntegration(appImagePath, appDirectory, sanitizedName);
 	return true;

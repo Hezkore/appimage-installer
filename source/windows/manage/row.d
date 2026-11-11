@@ -36,11 +36,8 @@ import windows.update : buildUpdateBox, buildCheckingBox,
 	buildPlingUpdateFlow;
 import update.common : parseUpdateMethodKind, UpdateMethodKind, reapplyAppIntegration;
 import update.directlink : extractDirectLinkUrl;
-import update.zsync : extractZsyncUrl, checkZsyncForUpdate;
-import update.githubzsync : checkGitHubZsyncForUpdate;
-import update.githubrelease : checkGitHubReleaseForUpdate;
-import update.githublinuxmanifest : checkGitHubLinuxManifestForUpdate;
-import update.pling : checkPlingForUpdate;
+import update.zsync : extractZsyncUrl;
+import update.checker : checkForUpdate;
 import windows.uninstall : buildUninstallBox;
 import windows.cleanup : buildCleanupBox;
 import windows.addupdate : buildAddUpdateMethodBox;
@@ -912,80 +909,24 @@ package AppRowResult buildAppRow(ManageWindow win, ref InstalledApp entry) {
 			showUpdateBox(true, "", false);
 			win.slideToSub(updateNavStack);
 			break;
-		case UpdateMethodKind.Zsync: {
+		default: {
 				contentSlot.append(buildCheckingBox());
 				win.slideToSub(updateNavStack);
 				bool available;
 				string error;
 				win.doThreadedWork(
 				{
-					checkZsyncForUpdate(capturedDir, capturedSanitizedName,
-					extractZsyncUrl(capturedUpdateInfo), available, error,
-					() => cast(bool) atomicLoad(win.workCancelled));
-				},
-				{ showUpdateBox(available, error, false); });
-				break;
-			}
-		case UpdateMethodKind.GitHubZsync: {
-				contentSlot.append(buildCheckingBox());
-				win.slideToSub(updateNavStack);
-				bool available;
-				string error;
-				win.doThreadedWork(
-				{
-					checkGitHubZsyncForUpdate(capturedDir, capturedSanitizedName,
+					checkForUpdate(capturedDir, capturedSanitizedName,
 					capturedUpdateInfo, available, error,
 					() => cast(bool) atomicLoad(win.workCancelled));
 				},
-				{ showUpdateBox(available, error, false); });
-				break;
-			}
-		case UpdateMethodKind.GitHubRelease: {
-				contentSlot.append(buildCheckingBox());
-				win.slideToSub(updateNavStack);
-				bool available;
-				string error;
-				win.doThreadedWork(
 				{
-					checkGitHubReleaseForUpdate(capturedDir,
-					capturedUpdateInfo, available, error,
-					() => cast(bool) atomicLoad(win.workCancelled));
-				},
-				{ showUpdateBox(available, error, false); });
+					// The check reads the app again when its file changed, so show what is saved now
+					reloadRow();
+					showUpdateBox(available, error, false);
+				});
 				break;
 			}
-		case UpdateMethodKind.GitHubLinuxManifest: {
-				contentSlot.append(buildCheckingBox());
-				win.slideToSub(updateNavStack);
-				bool available;
-				string error;
-				win.doThreadedWork(
-				{
-					checkGitHubLinuxManifestForUpdate(capturedDir,
-					capturedUpdateInfo, available, error,
-					() => cast(bool) atomicLoad(win.workCancelled));
-				},
-				{ showUpdateBox(available, error, false); });
-				break;
-			}
-		case UpdateMethodKind.PlingV1Zsync: {
-				contentSlot.append(buildCheckingBox());
-				win.slideToSub(updateNavStack);
-				bool available;
-				string error;
-				win.doThreadedWork(
-				{
-					checkPlingForUpdate(capturedDir, capturedSanitizedName,
-					capturedUpdateInfo, available, error,
-					() => cast(bool) atomicLoad(win.workCancelled));
-				},
-				{ showUpdateBox(available, error, false); });
-				break;
-			}
-		default:
-			win.slideToSub(updateNavStack);
-			showUpdateBox(false, "", false);
-			break;
 		}
 	});
 	actionsBox.append(updateButton);
