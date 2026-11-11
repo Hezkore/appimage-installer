@@ -61,6 +61,8 @@ class AppImage {
 	string[] desktopFileLines;
 	string sanitizedName; // Filesystem-safe lowercase, used for install dirs
 	bool isFullyLoaded;
+	// False when the AppImage ships no desktop entry and its name is only the file name
+	bool hasDesktopEntry;
 	// Theme icon name registered in hicolor after install
 	string installedIconName;
 	string installedAppDirectory; // ~/.local/share/appimages/<sanitizedName>/
@@ -72,6 +74,9 @@ class AppImage {
 	// Set before install() when an existing portable.home or portable.config should be preserved
 	bool portableHome;
 	bool portableConfig;
+	// Set before install() when appName or appComment hold what the user chose in Options
+	bool nameIsCustom;
+	bool commentIsCustom;
 	// Written by the worker thread so the main thread can poll the progress bar
 	shared double installProgress;
 
@@ -378,6 +383,7 @@ class AppImage {
 			}
 		}
 
+		this.hasDesktopEntry = desktopFilePath.length > 0;
 		if (desktopFilePath.length) {
 			writeln("Found .desktop file: ", desktopFilePath);
 			this.desktopFileLines = File(desktopFilePath, "r").byLineCopy().array;

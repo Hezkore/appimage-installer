@@ -8,7 +8,7 @@ import std.file;
 import std.path : buildPath, baseName, dirName;
 import std.process : execute, spawnProcess, Config, ProcessException, Pid, environment;
 import std.stdio : writeln;
-import std.string : startsWith, strip, split, indexOf, splitLines;
+import std.string : endsWith, startsWith, strip, stripLeft, split, indexOf, splitLines;
 
 import appimage : AppImage, pathIsSymlink;
 import appimage.icon : installIconFromDir, installIconFromCachedData;
@@ -163,6 +163,8 @@ public void writeManifest(AppImage appImage, string manifestPath) {
 	installedAppManifest.appName = appImage.appName;
 	installedAppManifest.appGenericName = appImage.appGenericName;
 	installedAppManifest.appComment = appImage.appComment;
+	installedAppManifest.nameIsCustom = appImage.nameIsCustom;
+	installedAppManifest.commentIsCustom = appImage.commentIsCustom;
 	installedAppManifest.releaseVersion = appImage.releaseVersion;
 	installedAppManifest.sanitizedName = appImage.sanitizedName;
 	installedAppManifest.originalSourceFile = appImage.filePath;
@@ -285,6 +287,98 @@ public void startDesktopDatabaseUpdate(string applicationsDir) {
 	} catch (ProcessException error) {
 		writeln("update-desktop-database not available: ", error.msg);
 	}
+}
+
+// Sets key= in the [Desktop Entry] group of a desktop file's lines and removes its locale variants,
+// so the value shows in every language
+// Inserts the key after [Desktop Entry] when it was not there before
+// Lines may keep a carriage return or spaces, as AppImages ship them
+public string[] withDesktopEntryField(const string[] lines, string key, string value) {
+	// What follows the key in a line that sets it: '=' for the plain value, '[' for a locale variant
+	char markAfterKey(string line) {
+		string stripped = line.strip();
+		if (!stripped.startsWith(key))
+			return char.init;
+		string rest = stripped[key.length .. $].stripLeft();
+		return rest.length ? rest[0] : char.init;
+	}
+
+	string lineEndOf(string line) {
+		return line.endsWith("\r") ? "\r" : "";
+	}
+
+	ptrdiff_t sectionStart = -1;
+	size_t sectionEnd = lines.length;
+	foreach (index, line; lines) {
+		string stripped = line.strip();
+		if (stripped == "[Desktop Entry]") {
+			sectionStart = index;
+		} else if (sectionStart >= 0 && stripped.startsWith("[")) {
+			sectionEnd = index;
+			break;
+		}
+	}
+	if (sectionStart < 0)
+		return lines.dup;
+	bool patched = false;
+	string[] result;
+	foreach (index, line; lines) {
+		if (index > cast(size_t) sectionStart && index < sectionEnd) {
+			char mark = markAfterKey(line);
+			if (mark == '=' && !patched) {
+				result ~= key ~ "=" ~ value ~ lineEndOf(line);
+				patched = true;
+				continue;
+			}
+			if (mark == '[')
+				continue;
+		}
+		result ~= line;
+	}
+	if (!patched)
+		result = result[0 .. sectionStart + 1]
+			~ [key ~ "=" ~ value ~ lineEndOf(lines[sectionStart])]
+			~ result[sectionStart + 1 .. $];
+	return result;
+}
+
+// Sets key= in the [Desktop Entry] group of a desktop file, keeping its line endings
+public void patchDesktopField(string path, string key, string value) {
+	if (!exists(path))
+		return;
+	string raw;
+	try {
+		raw = readText(path);
+	} catch (FileException error) {
+		writeln("patchDesktopField: could not read ", path, ": ", error.msg);
+		return;
+	}
+	string lineEnding = raw.indexOf("\r\n") >= 0 ? "\r\n" : "\n";
+	auto lines = raw.splitLines();
+	auto patchedLines = withDesktopEntryField(lines, key, value);
+	if (patchedLines == lines)
+		return;
+	try {
+		write(path, patchedLines.join(lineEnding) ~ lineEnding);
+	} catch (FileException error) {
+		writeln("patchDesktopField: could not write ", key, " to ", path, ": ", error.msg);
+	}
+}
+
+unittest {
+	string[] lines = [
+		"[Desktop Entry]", "Name=App", "Name[sv]=Appen", "Exec=app",
+		"", "[Desktop Action Update]", "Name=Update", "Name[sv]=Uppdatera",
+	];
+	assert(withDesktopEntryField(lines, "Name", "Mine") == [
+			"[Desktop Entry]", "Name=Mine", "Exec=app",
+			"", "[Desktop Action Update]", "Name=Update", "Name[sv]=Uppdatera",
+		]);
+	assert(withDesktopEntryField(lines, "Comment", "Note")[0 .. 3] == ["[Desktop Entry]", "Comment=Note", "Name=App"]);
+	assert(withDesktopEntryField(["Name=App"], "Name", "Mine") == ["Name=App"]);
+	// Carriage returns and spaces from the AppImage's own file do not hide the group or the key
+	assert(withDesktopEntryField(["[Desktop Entry]\r", "Name = App\r", "NameSpace=1\r"], "Name", "Mine")
+			== ["[Desktop Entry]\r", "Name=Mine\r", "NameSpace=1\r"]);
 }
 
 // One action this installer adds to the desktop file of every app
@@ -440,6 +534,11 @@ public void writeDesktopFile(
 	// If [Desktop Entry] was the last (or only) section and Actions= never appeared
 	if (inDesktopEntry && !actionsRewritten)
 		outputLines ~= "Actions=Update;Uninstall;";
+
+	if (appImage.nameIsCustom)
+		outputLines = withDesktopEntryField(outputLines, "Name", appImage.appName);
+	if (appImage.commentIsCustom)
+		outputLines = withDesktopEntryField(outputLines, "Comment", appImage.appComment);
 
 	foreach (action; OWN_DESKTOP_ACTIONS) {
 		outputLines ~= "";

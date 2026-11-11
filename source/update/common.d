@@ -162,11 +162,8 @@ public void reapplyAppIntegration(
 	updatedApp.sanitizedName = sanitizedName;
 	updatedApp.installMethod = InstallMethod.AppImage;
 	auto manifestBeforeRead = Manifest.loadFromAppDir(appDirectory);
-	if (manifestBeforeRead !is null) {
+	if (manifestBeforeRead !is null)
 		updatedApp.installedIconName = manifestBeforeRead.installedIconName;
-		updatedApp.portableHome = manifestBeforeRead.portableHome;
-		updatedApp.portableConfig = manifestBeforeRead.portableConfig;
-	}
 
 	try {
 		updatedApp.loadBasicInfo();
@@ -182,14 +179,16 @@ public void reapplyAppIntegration(
 	}
 
 	// An AppImage we could not read keeps the desktop file and icon it has
+	if (updatedApp.isFullyLoaded && updatedApp.cachedIconBytes.length)
+		installIconFromCachedData(updatedApp);
+
+	// Loaded only now, so nothing saved while the AppImage was mounted is lost or written back stale
+	auto installedAppManifest = Manifest.loadFromAppDir(appDirectory);
 	if (updatedApp.isFullyLoaded) {
-		if (updatedApp.cachedIconBytes.length)
-			installIconFromCachedData(updatedApp);
+		if (installedAppManifest !is null)
+			applyUserSettings(updatedApp, installedAppManifest);
 		writeDesktopFile(updatedApp, desktopPath, "", appImagePath);
 	}
-
-	// Loaded again so nothing saved while the AppImage was mounted is lost
-	auto installedAppManifest = Manifest.loadFromAppDir(appDirectory);
 	if (installedAppManifest is null)
 		return;
 	// Saved for an unreadable file too, so that file is not read again until it changes
@@ -199,8 +198,27 @@ public void reapplyAppIntegration(
 			installedAppManifest.installedIconName = updatedApp.installedIconName;
 		if (updatedApp.releaseVersion.length)
 			installedAppManifest.releaseVersion = updatedApp.releaseVersion;
+		// After applyUserSettings these hold what the user set, or else what the new version says
+		// An AppImage without a desktop entry has only its file name to offer, so the saved name stays
+		if (updatedApp.hasDesktopEntry) {
+			installedAppManifest.appName = updatedApp.appName;
+			installedAppManifest.appComment = updatedApp.appComment;
+		}
 	}
 	installedAppManifest.save();
+}
+
+// Hands what the user set for an installed app to the freshly read AppImage that replaces it,
+// so the desktop file and manifest written from that AppImage keep it
+private void applyUserSettings(AppImage newApp, const Manifest saved) {
+	newApp.portableHome = saved.portableHome;
+	newApp.portableConfig = saved.portableConfig;
+	newApp.nameIsCustom = saved.nameIsCustom;
+	if (saved.nameIsCustom)
+		newApp.appName = saved.appName;
+	newApp.commentIsCustom = saved.commentIsCustom;
+	if (saved.commentIsCustom)
+		newApp.appComment = saved.appComment;
 }
 
 // Reads an app's details again when its AppImage was replaced from outside, such as by the app's own updater
@@ -342,20 +360,11 @@ public bool finishInstall(
 	progress = progressStart + LOAD_FRAC * span;
 	progressText = textExtracting;
 
-	// Portable state and original source survive re-extraction
-	string savedOriginal;
-	bool savedPortableHome, savedPortableConfig;
+	// What the user set survives re-extraction, and the new AppImage is told before
+	// install() so the desktop file is written right in one shot
 	auto oldManifest = Manifest.loadFromAppDir(appDirectory);
-	if (oldManifest !is null) {
-		savedOriginal = oldManifest.originalSourceFile;
-		savedPortableHome = oldManifest.portableHome;
-		savedPortableConfig = oldManifest.portableConfig;
-	}
-
-	// Tell the new AppImage about portable state so writeDesktopFile injects
-	// the env vars in one shot instead of needing a post-hoc patch
-	newApp.portableHome = savedPortableHome;
-	newApp.portableConfig = savedPortableConfig;
+	if (oldManifest !is null)
+		applyUserSettings(newApp, oldManifest);
 
 	// Portable data dirs sit inside the metadata dir, which gets wiped by re-extraction
 	// Move them to a sibling path (same filesystem, so rename is atomic) before the wipe
@@ -412,13 +421,12 @@ public bool finishInstall(
 		collectException(rename(portableConfigBackup,
 				buildPath(newApp.installedAppDirectory, APPLICATIONS_SUBDIR, "portable.config")));
 
-	// Save originalSourceFile to the new manifest (portable fields are already
-	// written correctly by writeManifest since they came from newApp)
-	if (savedOriginal.length) {
+	// install() wrote a fresh manifest from the new AppImage alone
+	if (oldManifest !is null) {
 		auto installedAppManifest =
 			Manifest.loadFromAppDir(newApp.installedAppDirectory);
 		if (installedAppManifest !is null) {
-			installedAppManifest.originalSourceFile = savedOriginal;
+			installedAppManifest.keepInstallDetailsFrom(oldManifest);
 			installedAppManifest.save();
 		}
 	}

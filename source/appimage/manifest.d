@@ -31,6 +31,9 @@ class Manifest {
 	string appName;
 	string appGenericName;
 	string appComment;
+	// True when the user set the name or comment in Options, so an update keeps it
+	bool nameIsCustom;
+	bool commentIsCustom;
 	string releaseVersion;
 	string sanitizedName;
 	string originalSourceFile;
@@ -57,6 +60,23 @@ class Manifest {
 	bool portableConfig;
 
 	private string loadedPath;
+
+	// Takes over the update method and what describes the first install from the manifest
+	// this one replaces after an update installed the app again
+	// Name, comment and portable settings reach the new manifest through the AppImage it is written from
+	void keepInstallDetailsFrom(const Manifest previous) {
+		this.installedAt = previous.installedAt;
+		this.originalSourceFile = previous.originalSourceFile;
+		this.sourceFileName = previous.sourceFileName;
+		this.sourceFileSize = previous.sourceFileSize;
+		this.sourceFileModified = previous.sourceFileModified;
+		this.sourceFileHash = previous.sourceFileHash;
+		this.iconCheckedVersion = previous.iconCheckedVersion;
+		this.lastCheckedAt = previous.lastCheckedAt;
+		// An app that had no update method takes the one its new version brings
+		if (previous.updateInfo.length)
+			this.updateInfo = previous.updateInfo;
+	}
 
 	// Canonical path to the manifest inside an app directory
 	static string pathFor(string appDirectory) {
@@ -105,6 +125,10 @@ class Manifest {
 				if (ua.type == JSONType.true_ || ua.type == JSONType.false_)
 					manifest.updateAvailable = ua.type == JSONType.true_;
 			manifest.lastCheckedAt = field("lastCheckedAt");
+			if (auto customName = "nameIsCustom" in json)
+				manifest.nameIsCustom = customName.type == JSONType.true_;
+			if (auto customComment = "commentIsCustom" in json)
+				manifest.commentIsCustom = customComment.type == JSONType.true_;
 			if (auto ph = "portableHome" in json)
 				if (ph.type == JSONType.true_ || ph.type == JSONType.false_)
 					manifest.portableHome = ph.type == JSONType.true_;
@@ -171,6 +195,8 @@ class Manifest {
 		json["appName"] = this.appName;
 		json["appGenericName"] = this.appGenericName;
 		json["appComment"] = this.appComment;
+		json["nameIsCustom"] = this.nameIsCustom;
+		json["commentIsCustom"] = this.commentIsCustom;
 		json["releaseVersion"] = this.releaseVersion;
 		json["sanitizedName"] = this.sanitizedName;
 		json["originalSourceFile"] = this.originalSourceFile;

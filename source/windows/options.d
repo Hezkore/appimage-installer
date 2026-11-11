@@ -30,7 +30,7 @@ import gtk.switch_ : Switch;
 import gtk.types : Align, Orientation, PolicyType, SelectionMode, StackTransitionType;
 import gtk.window : Window;
 
-import appimage.install : portableHomeDir, portableConfigDir, reapplyPortableExec;
+import appimage.install : portableHomeDir, portableConfigDir, reapplyPortableExec, patchDesktopField;
 import appimage.manifest : Manifest;
 import types : InstallMethod;
 import update.directlink : isDirectLink, extractDirectLinkUrl;
@@ -83,55 +83,6 @@ private string describeUpdateMethod(string updateInfo) {
 	if (updateInfo.length)
 		return L("options.update.unknown") ~ ": " ~ updateInfo.split("|")[0];
 	return L("options.update.none");
-}
-
-// Patches a key= in [Desktop Entry], removing locale variants and preserving line endings
-// Inserts the key after [Desktop Entry] if it was not there before
-private void patchDesktopField(string path, string key, string value) {
-	if (!exists(path))
-		return;
-	string raw = readText(path);
-	string lineEnding = raw.indexOf("\r\n") >= 0 ? "\r\n" : "\n";
-	auto allLines = raw.splitLines();
-	string exactPrefix = key ~ "=";
-	string localePrefix = key ~ "[";
-	int sectionStart = -1;
-	int sectionEnd = cast(int) allLines.length;
-	foreach (i, line; allLines) {
-		if (line == "[Desktop Entry]") {
-			sectionStart = cast(int) i;
-		} else if (sectionStart >= 0 && line.startsWith("[")) {
-			sectionEnd = cast(int) i;
-			break;
-		}
-	}
-	if (sectionStart < 0)
-		return;
-	bool patched = false;
-	string[] result;
-	foreach (i, line; allLines) {
-		if (i >= cast(size_t) sectionStart
-			&& i < cast(size_t) sectionEnd) {
-			if (!patched && line.startsWith(exactPrefix)) {
-				result ~= exactPrefix ~ value;
-				patched = true;
-				continue;
-			}
-			if (line.startsWith(localePrefix))
-				continue;
-		}
-		result ~= line;
-	}
-	if (!patched) {
-		result = allLines[0 .. sectionStart + 1]
-			~ [exactPrefix ~ value]
-			~ allLines[sectionStart + 1 .. $];
-	}
-	try {
-		write(path, result.join(lineEnding) ~ lineEnding);
-	} catch (FileException error) {
-		writeln("options: failed to patch desktop field ", key, ": ", error.msg);
-	}
 }
 
 // Builds the per-app options page with grouped boxed-list fields and release type cards
@@ -693,11 +644,13 @@ Box buildOptionsBox(
 		string newComment = commentEntry.getText();
 		if (newName != currentName) {
 			installedAppManifest.appName = newName;
+			installedAppManifest.nameIsCustom = true;
 			patchDesktopField(desktopPath, "Name", newName);
 			currentName = newName;
 		}
 		if (newComment != currentComment) {
 			installedAppManifest.appComment = newComment;
+			installedAppManifest.commentIsCustom = true;
 			patchDesktopField(desktopPath, "Comment", newComment);
 			currentComment = newComment;
 		}
