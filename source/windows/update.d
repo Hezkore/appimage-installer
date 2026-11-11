@@ -41,7 +41,7 @@ import update.githublinuxmanifest : isGitHubLinuxManifest, checkGitHubLinuxManif
 import update.githublinuxmanifest : performGitHubLinuxManifestUpdate;
 import update.pling : isPling, checkPlingForUpdate, performPlingUpdate;
 import update.common : readManifestFields, retryInstallAfterSig,
-	parseUpdateMethodKind, UpdateMethodKind;
+	parseUpdateMethodKind, UpdateMethodKind, reapplyIfFileChanged;
 import types : InstallMethod;
 import appimage.manifest : Manifest;
 import lang : L;
@@ -774,6 +774,7 @@ class UpdateWindow : AppWindow {
 
 	override void loadWindow() {
 		auto startTime = MonoTime.currTime;
+		reapplyIfFileChanged(this.appDirectory, this.sanitizedName);
 		final switch (parseUpdateMethodKind(this.updateInfo)) {
 		case UpdateMethodKind.DirectLink:
 		case UpdateMethodKind.Unknown:

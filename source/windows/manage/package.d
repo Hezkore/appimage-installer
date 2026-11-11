@@ -127,37 +127,49 @@ private void appendAppGroup(
 	}
 }
 
-// Reinstalls the icon of AppImage-mode apps saved without one, once per installer
-// version so apps that ship no icon are not remounted at each open
+// Brings what we saved about each app up to date with the files on disk
+// Reads an AppImage again when the file changed, or once per installer version when
+// the app was saved without an icon, so apps that ship no icon are not remounted at each open
 // Returns true when any manifest changed
-private bool restoreMissingIcons(InstalledApp[] apps) {
+private bool refreshStaleApps(InstalledApp[] apps) {
 	import std.file : exists;
 	import std.path : buildPath;
 	import std.stdio : writeln;
-	import constants : INSTALLER_VERSION;
+	import appimage.install : refreshDesktopActions, startDesktopDatabaseUpdate;
+	import apputils : xdgDataHome;
+	import constants : APPLICATIONS_SUBDIR, DESKTOP_SUFFIX, INSTALLER_VERSION;
 	import types : InstallMethod;
-	import update.common : reapplyAppIntegration;
+	import update.common : reapplyAppIntegration, reapplyIfFileChanged;
 
 	bool changed;
+	bool desktopFilesChanged;
+	scope (exit)
+		if (desktopFilesChanged)
+			startDesktopDatabaseUpdate(buildPath(xdgDataHome(), "applications"));
 	foreach (ref app; apps) {
-		if (app.isOrphan || app.installedIconName.length
-			|| app.installMethod != InstallMethod.AppImage)
+		if (app.isOrphan)
 			continue;
+		desktopFilesChanged |= refreshDesktopActions(buildPath(
+				app.appDirectory, APPLICATIONS_SUBDIR, app.sanitizedName ~ DESKTOP_SUFFIX));
+		if (app.installMethod != InstallMethod.AppImage)
+			continue;
+		bool reapplied = reapplyIfFileChanged(app.appDirectory, app.sanitizedName);
+		changed |= reapplied;
 		auto installedAppManifest = Manifest.loadFromAppDir(app.appDirectory);
-		if (installedAppManifest is null
+		if (app.installedIconName.length || installedAppManifest is null
 			|| installedAppManifest.iconCheckedVersion == INSTALLER_VERSION)
 			continue;
 		string appImagePath = buildPath(
 			app.appDirectory, app.sanitizedName ~ ".AppImage");
-		if (exists(appImagePath)) {
+		if (!reapplied && exists(appImagePath)) {
 			writeln("manage: looking for the missing icon of ", app.appName);
 			reapplyAppIntegration(
 				appImagePath, app.appDirectory, app.sanitizedName);
+			// Reload since reapplyAppIntegration saved the manifest itself
+			installedAppManifest = Manifest.loadFromAppDir(app.appDirectory);
+			if (installedAppManifest is null)
+				continue;
 		}
-		// Reload since reapplyAppIntegration saved the manifest itself
-		installedAppManifest = Manifest.loadFromAppDir(app.appDirectory);
-		if (installedAppManifest is null)
-			continue;
 		installedAppManifest.iconCheckedVersion = INSTALLER_VERSION;
 		installedAppManifest.save();
 		changed = true;
@@ -346,7 +358,7 @@ class ManageWindow : AppWindow {
 
 		writeln("ManageWindow: scanning installed apps");
 		this.installedApps = scanInstalledApps();
-		if (restoreMissingIcons(this.installedApps))
+		if (refreshStaleApps(this.installedApps))
 			this.installedApps = scanInstalledApps();
 		this.installerUpdateVersion = readInstallerUpdateVersion();
 	}

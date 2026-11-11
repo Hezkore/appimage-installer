@@ -15,7 +15,7 @@ import appimage : AppImage;
 import appimage.elf : readElfInfo;
 import appimage.icon : installIconFromCachedData;
 import appimage.install : writeDesktopFile;
-import appimage.manifest : Manifest;
+import appimage.manifest : Manifest, fileStamp;
 import appimage.signature : SignatureStatus, SignatureResult, checkSignature;
 import types : InstallMethod;
 import constants : APPIMAGE_EXEC_MODE, APPLICATIONS_SUBDIR, DESKTOP_SUFFIX,
@@ -155,10 +155,15 @@ public void reapplyAppIntegration(
 	string desktopPath = buildPath(metaDir, sanitizedName ~ DESKTOP_SUFFIX);
 
 	auto installedAppManifest = Manifest.loadFromAppDir(appDirectory);
+	// Saved on every way out, so a file we cannot read is not read again until it changes
+	scope (exit)
+		if (installedAppManifest !is null)
+			installedAppManifest.save();
 	auto updatedApp = new AppImage(appImagePath);
 	updatedApp.sanitizedName = sanitizedName;
 	updatedApp.installMethod = InstallMethod.AppImage;
 	if (installedAppManifest !is null) {
+		installedAppManifest.installedFileStamp = fileStamp(appImagePath);
 		updatedApp.installedIconName = installedAppManifest.installedIconName;
 		updatedApp.portableHome = installedAppManifest.portableHome;
 		updatedApp.portableConfig = installedAppManifest.portableConfig;
@@ -189,10 +194,21 @@ public void reapplyAppIntegration(
 				updatedApp.installedIconName;
 		if (updatedApp.releaseVersion.length)
 			installedAppManifest.releaseVersion = updatedApp.releaseVersion;
-		if (updatedApp.fileName.length)
-			installedAppManifest.sourceFileName = updatedApp.fileName;
-		installedAppManifest.save();
 	}
+}
+
+// Reads an app's details again when its AppImage was replaced from outside, such as by the app's own updater
+// Returns true when the details were read again
+public bool reapplyIfFileChanged(string appDirectory, string sanitizedName) {
+	auto installedAppManifest = Manifest.loadFromAppDir(appDirectory);
+	if (installedAppManifest is null || installedAppManifest.installMethod != InstallMethod.AppImage)
+		return false;
+	string appImagePath = buildPath(appDirectory, sanitizedName ~ ".AppImage");
+	if (!exists(appImagePath) || installedAppManifest.installedFileStamp == fileStamp(appImagePath))
+		return false;
+	writeln("update: ", appImagePath, " changed since it was last read");
+	reapplyAppIntegration(appImagePath, appDirectory, sanitizedName);
+	return true;
 }
 
 // Reads installMethod from the manifest at appDirectory

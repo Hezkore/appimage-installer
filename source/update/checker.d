@@ -5,7 +5,7 @@ module update.checker;
 import std.json : JSONValue;
 import std.stdio : writeln;
 
-import update.common : parseUpdateMethodKind, UpdateMethodKind;
+import update.common : parseUpdateMethodKind, UpdateMethodKind, reapplyIfFileChanged;
 import update.githubcommon : fetchGitHubRelease;
 import update.githubrelease : checkGitHubReleaseForUpdate;
 import update.githubzsync : checkGitHubZsyncForUpdate;
@@ -20,6 +20,8 @@ import constants : INSTALLER_GH_USER, INSTALLER_GH_REPO, INSTALLER_VERSION, TAG_
 public bool checkOneApp(InstalledApp entry, out string error) {
 	if (!entry.updateInfo.length)
 		return false;
+	// An app that updated its own file must not be compared by the version we saved before
+	reapplyIfFileChanged(entry.appDirectory, entry.sanitizedName);
 	bool available;
 	final switch (parseUpdateMethodKind(entry.updateInfo)) {
 	case UpdateMethodKind.DirectLink:

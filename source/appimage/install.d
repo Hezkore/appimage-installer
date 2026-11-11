@@ -12,7 +12,7 @@ import std.string : startsWith, strip, split, indexOf, splitLines;
 
 import appimage : AppImage, pathIsSymlink;
 import appimage.icon : installIconFromDir, installIconFromCachedData;
-import appimage.manifest : Manifest;
+import appimage.manifest : Manifest, fileStamp;
 import types : InstallMethod;
 import apputils : xdgDataHome, installBaseDir;
 import constants : APPLICATIONS_SUBDIR;
@@ -57,9 +57,7 @@ public void reapplyPortableExec(
 		if (stripped == "[Desktop Entry]") {
 			inExecSection = true;
 		} else if (stripped.length && stripped[0] == '[') {
-			inExecSection = stripped.startsWith("[Desktop Action ")
-				&& stripped != "[Desktop Action Update]"
-				&& stripped != "[Desktop Action Uninstall]";
+			inExecSection = stripped.startsWith("[Desktop Action ") && !isOwnDesktopAction(stripped);
 		}
 		if (inExecSection && stripped.startsWith("Exec=")) {
 			string newLine;
@@ -184,6 +182,8 @@ public void writeManifest(AppImage appImage, string manifestPath) {
 	installedAppManifest.installMethod = appImage.installMethod;
 	installedAppManifest.portableHome = appImage.portableHome;
 	installedAppManifest.portableConfig = appImage.portableConfig;
+	if (appImage.installMethod == InstallMethod.AppImage)
+		installedAppManifest.installedFileStamp = fileStamp(appImage.appImageDestPath);
 	installedAppManifest.saveTo(manifestPath);
 }
 
@@ -277,6 +277,88 @@ public void clearAppDirExceptMeta(string appDir) {
 	}
 }
 
+// Rebuilds the MIME and app database so the desktop sees changed desktop files at once
+public void startDesktopDatabaseUpdate(string applicationsDir) {
+	try {
+		spawnProcess(["update-desktop-database", applicationsDir]);
+		writeln("Desktop database update started: ", applicationsDir);
+	} catch (ProcessException error) {
+		writeln("update-desktop-database not available: ", error.msg);
+	}
+}
+
+// One action this installer adds to the desktop file of every app
+private struct OwnDesktopAction {
+	string header;
+	string nameKey;
+	string flag;
+}
+
+private immutable OwnDesktopAction[] OWN_DESKTOP_ACTIONS = [
+	OwnDesktopAction("[Desktop Action Update]", "desktop.action.update", "--update"),
+	OwnDesktopAction("[Desktop Action Uninstall]", "desktop.action.uninstall", "--uninstall"),
+];
+
+private bool isOwnDesktopAction(string sectionHeader) {
+	import std.algorithm : any;
+
+	return OWN_DESKTOP_ACTIONS[].any!(action => action.header == sectionHeader);
+}
+
+// The lines of one of our actions, named in every language we ship
+// The command points at the desktop file inside the app directory so the manager can find the app
+private string[] desktopActionLines(OwnDesktopAction action, string desktopFilePath) {
+	string[] lines = ["Name=" ~ translateIn("en", action.nameKey)];
+	foreach (locale; availableLangs())
+		if (locale != "en")
+			lines ~= "Name[" ~ locale ~ "]=" ~ translateIn(locale, action.nameKey);
+	lines ~= "Exec=" ~ thisExePath() ~ " " ~ action.flag ~ " " ~ desktopFilePath;
+	return lines;
+}
+
+// Brings our actions in an existing desktop file up to date, such as after
+// their names changed or this installer moved
+// Returns true when the file changed
+public bool refreshDesktopActions(string desktopPath) {
+	string raw;
+	try {
+		raw = readText(desktopPath);
+	} catch (FileException) {
+		return false;
+	}
+	bool inOwnAction = false;
+	string[] result;
+	foreach (line; raw.splitLines()) {
+		string stripped = line.strip();
+		if (stripped.length && stripped[0] == '[') {
+			inOwnAction = false;
+			result ~= line;
+			foreach (action; OWN_DESKTOP_ACTIONS) {
+				if (stripped != action.header)
+					continue;
+				inOwnAction = true;
+				result ~= desktopActionLines(action, desktopPath);
+			}
+			continue;
+		}
+		if (inOwnAction && (stripped.startsWith("Name=") || stripped.startsWith("Name[")
+				|| stripped.startsWith("Exec=")))
+			continue;
+		result ~= line;
+	}
+	string refreshed = result.join("\n") ~ "\n";
+	if (refreshed == raw)
+		return false;
+	try {
+		write(desktopPath, refreshed);
+	} catch (FileException error) {
+		writeln("refreshDesktopActions: write failed: ", error.msg);
+		return false;
+	}
+	writeln("Desktop actions refreshed: ", desktopPath);
+	return true;
+}
+
 public void writeDesktopFile(
 	AppImage appImage, string desktopFilePath, string appExtractDir,
 	string appRunPath) {
@@ -307,8 +389,7 @@ public void writeDesktopFile(
 			inDesktopEntry = false;
 			// Rewrite Exec= for all app Desktop Actions but not for
 			// [Desktop Action Update] and [Desktop Action Uninstall] which we append ourselves
-			inExecSection = stripped.startsWith("[Desktop Action ") && stripped != "[Desktop Action Update]" &&
-				stripped != "[Desktop Action Uninstall]";
+			inExecSection = stripped.startsWith("[Desktop Action ") && !isOwnDesktopAction(stripped);
 		}
 
 		if (inExecSection && stripped.startsWith("Exec=")) {
@@ -358,28 +439,11 @@ public void writeDesktopFile(
 	if (inDesktopEntry && !actionsRewritten)
 		outputLines ~= "Actions=Update;Uninstall;";
 
-	// Append update and uninstall desktop actions
-	// Reference the desktop file path inside the app directory so the manager can find it
-	outputLines ~= "";
-	outputLines ~= "[Desktop Action Update]";
-	outputLines ~= "Name="
-		~ translateIn("en", "desktop.action.update", appImage.appName);
-	foreach (locale; availableLangs())
-		if (locale != "en")
-			outputLines ~= "Name[" ~ locale ~ "]="
-				~ translateIn(
-					locale, "desktop.action.update", appImage.appName);
-	outputLines ~= "Exec=" ~ thisExePath() ~ " --update " ~ desktopFilePath;
-	outputLines ~= "";
-	outputLines ~= "[Desktop Action Uninstall]";
-	outputLines ~= "Name="
-		~ translateIn("en", "desktop.action.uninstall", appImage.appName);
-	foreach (locale; availableLangs())
-		if (locale != "en")
-			outputLines ~= "Name[" ~ locale ~ "]="
-				~ translateIn(
-					locale, "desktop.action.uninstall", appImage.appName);
-	outputLines ~= "Exec=" ~ thisExePath() ~ " --uninstall " ~ desktopFilePath;
+	foreach (action; OWN_DESKTOP_ACTIONS) {
+		outputLines ~= "";
+		outputLines ~= action.header;
+		outputLines ~= desktopActionLines(action, desktopFilePath);
+	}
 
 	try {
 		write(desktopFilePath, outputLines.join("\n") ~ "\n");
@@ -471,12 +535,7 @@ private bool doInstallAppImage(AppImage appImage) {
 	appImage.installedAppDirectory = appDir;
 	appImage.installedDesktopSymlinkPath = desktopSymlinkPath;
 
-	try {
-		spawnProcess(["update-desktop-database", desktopSymlinkDir]);
-		writeln("Desktop database update started: ", desktopSymlinkDir);
-	} catch (ProcessException error) {
-		writeln("update-desktop-database not available: ", error.msg);
-	}
+	startDesktopDatabaseUpdate(desktopSymlinkDir);
 
 	writeManifest(appImage, buildPath(metadataDir, MANIFEST_FILE_NAME));
 	atomicStore(appImage.installProgress, cast(double) Progress.complete);
@@ -619,13 +678,7 @@ private bool doInstallExtracted(AppImage appImage) {
 	appImage.installedAppDirectory = appExtractDir;
 	appImage.installedDesktopSymlinkPath = desktopSymlinkPath;
 
-	// Rebuild MIME/app database so the DE sees the new desktop file immediately
-	try {
-		spawnProcess(["update-desktop-database", desktopSymlinkDir]);
-		writeln("Desktop database update started: ", desktopSymlinkDir);
-	} catch (ProcessException error) {
-		writeln("update-desktop-database not available: ", error.msg);
-	}
+	startDesktopDatabaseUpdate(desktopSymlinkDir);
 
 	writeManifest(appImage, buildPath(metadataDir, MANIFEST_FILE_NAME));
 

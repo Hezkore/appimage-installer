@@ -12,6 +12,18 @@ import std.stdio : writeln;
 import types : InstallMethod;
 import constants : APPLICATIONS_SUBDIR, INSTALLER_VERSION, MANIFEST_FILE_NAME;
 
+// Size and modification time of a file, enough to notice that an app replaced its own AppImage
+// Returns "" when the file cannot be read
+public string fileStamp(string path) {
+	import std.file : getSize, timeLastModified;
+
+	try {
+		return getSize(path).to!string ~ ":" ~ timeLastModified(path).stdTime.to!string;
+	} catch (FileException) {
+		return "";
+	}
+}
+
 // One installed app's metadata stored on disk as JSON inside the app directory
 class Manifest {
 	string installerVersion = INSTALLER_VERSION;
@@ -28,6 +40,8 @@ class Manifest {
 	string sourceFileHash;
 	// SHA-1 of the AppImage last installed by a zsync update, kept for installs that delete the AppImage
 	string zsyncSha1;
+	// Size and time of the installed AppImage when its details were last read, see fileStamp
+	string installedFileStamp;
 	ubyte appImageType;
 	string architecture;
 	string updateInfo;
@@ -81,6 +95,7 @@ class Manifest {
 			manifest.sourceFileModified = field("sourceFileModified");
 			manifest.sourceFileHash = field("sourceFileHash");
 			manifest.zsyncSha1 = field("zsyncSha1");
+			manifest.installedFileStamp = field("installedFileStamp");
 			manifest.installedIconName = field("installedIconName");
 			manifest.iconCheckedVersion = field("iconCheckedVersion");
 			manifest.appDirectory = field("appDirectory");
@@ -164,6 +179,7 @@ class Manifest {
 		json["sourceFileModified"] = this.sourceFileModified;
 		json["sourceFileHash"] = this.sourceFileHash;
 		json["zsyncSha1"] = this.zsyncSha1;
+		json["installedFileStamp"] = this.installedFileStamp;
 		json["appImageType"] = this.appImageType;
 		json["architecture"] = this.architecture;
 		json["updateInfo"] = this.updateInfo;

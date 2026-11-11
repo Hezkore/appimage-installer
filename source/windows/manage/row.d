@@ -48,7 +48,8 @@ import windows.optimize : buildOptimizeBox;
 import windows.options : buildOptionsBox;
 import appimage : AppImage;
 import appimage.manifest : Manifest;
-import appimage.install : portableHomeDir, portableConfigDir, writeDesktopFile, launchInstalledApp;
+import appimage.install : portableHomeDir, portableConfigDir, writeDesktopFile, launchInstalledApp,
+	startDesktopDatabaseUpdate;
 import appimage.icon : reinstallIconFromExtractedDir, reinstallIconFromAppImageFile;
 import constants : CSS_PRIORITY_USER, APPLICATIONS_SUBDIR, DESKTOP_SUFFIX,
 	APPIMAGE_EXEC_MODE;
@@ -418,13 +419,7 @@ package AppRowResult buildAppRow(ManageWindow win, ref InstalledApp entry) {
 						capturedFixSymlink);
 					writeln("fix: symlink recreated: ",
 						capturedFixSymlink);
-					try {
-						spawnProcess([
-								"update-desktop-database",
-								symlinkDir
-							]);
-					} catch (ProcessException) {
-					}
+					startDesktopDatabaseUpdate(symlinkDir);
 					capturedIssueRow.setVisible(false);
 				} catch (FileException error) {
 					writeln(
