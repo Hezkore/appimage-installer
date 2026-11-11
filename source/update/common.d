@@ -22,7 +22,7 @@ import constants : APPIMAGE_EXEC_MODE, APPLICATIONS_SUBDIR, DESKTOP_SUFFIX,
 	HTTP_SUCCESS_MIN, HTTP_SUCCESS_MAX;
 
 // A version number inside a file name, such as 2.25.5
-private enum string VERSION_TOKEN = r"\d+\.\d+[\d.]*";
+private enum string VERSION_TOKEN = r"\d+(?:\.\d+)+";
 
 // Removes version numbers from a file name, so two releases of one build compare equal
 public string withoutVersion(string fileName) {

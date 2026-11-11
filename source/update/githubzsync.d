@@ -290,6 +290,7 @@ public bool performGitHubZsyncUpdate(
 unittest {
 	string saved = PREFIX ~ "WowUp|WowUp.CF|latest|WowUp-CF-2.25.5.AppImage.zsync";
 	string pattern = normalizeUpdateInfoPattern(saved).split("|")[$ - 1];
+	assert(pattern == "WowUp-CF-*.AppImage.zsync");
 	assert(assetMatchesHost("WowUp-CF-2.26.0.AppImage.zsync", pattern));
 	assert(!assetMatchesHost("WowUp-CF-2.26.0.AppImage", pattern));
 }

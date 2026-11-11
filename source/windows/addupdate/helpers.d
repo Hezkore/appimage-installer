@@ -19,6 +19,7 @@ import windows.base : makeIcon, setIconNames;
 import constants : APPLICATIONS_SUBDIR, MANIFEST_FILE_NAME;
 import appimage.manifest : Manifest;
 import apputils : xdgDataHome, installBaseDir;
+import update.common : normalizeUpdateInfoPattern;
 import lang : L;
 
 // The update method types the wizard can configure
@@ -117,9 +118,9 @@ public string buildUpdateInfo(MethodKind kind, string raw, string pattern = "") 
 	final switch (kind) {
 	case MethodKind.GitHubZsync:
 		auto slashPosition = raw.indexOf('/');
-		return "gh-releases-zsync|"
-			~ raw[0 .. slashPosition] ~ "|" ~ raw[slashPosition + 1 .. $]
-			~ "|latest|" ~ pattern.strip();
+		return normalizeUpdateInfoPattern("gh-releases-zsync|"
+				~ raw[0 .. slashPosition] ~ "|" ~ raw[slashPosition + 1 .. $]
+				~ "|latest|" ~ pattern.strip());
 	case MethodKind.GitHubRelease:
 		auto slashPosition = raw.indexOf('/');
 		return "gh-releases|"
