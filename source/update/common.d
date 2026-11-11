@@ -21,6 +21,14 @@ import types : InstallMethod;
 import constants : APPIMAGE_EXEC_MODE, APPLICATIONS_SUBDIR, DESKTOP_SUFFIX,
 	HTTP_SUCCESS_MIN, HTTP_SUCCESS_MAX;
 
+// A version number inside a file name, such as 2.25.5
+private enum string VERSION_TOKEN = r"\d+\.\d+[\d.]*";
+
+// Removes version numbers from a file name, so two releases of one build compare equal
+public string withoutVersion(string fileName) {
+	return replaceAll(fileName, regex(VERSION_TOKEN), "");
+}
+
 // Replaces exact version tokens in gh-releases asset patterns with * so the
 // pattern keeps matching after the app is updated to a new version
 public string normalizeUpdateInfoPattern(string updateInfo) {
@@ -37,7 +45,7 @@ public string normalizeUpdateInfoPattern(string updateInfo) {
 	// GitHub stores spaces in uploaded asset names as dots
 	string pattern = fields[$ - 1].replace(" ", ".");
 	if (pattern.indexOf('*') < 0)
-		pattern = replaceAll(pattern, regex(r"\d+\.\d+[\d.]*"), "*");
+		pattern = replaceAll(pattern, regex(VERSION_TOKEN), "*");
 	fields[$ - 1] = pattern;
 	return fields.join("|");
 }

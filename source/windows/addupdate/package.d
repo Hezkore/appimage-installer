@@ -532,6 +532,7 @@ Box buildAddUpdateMethodBox(
 				resolveOk = findGitHubZsyncAsset(
 				ownerName,
 				repositoryName,
+				installedFileName(sanitizedName),
 				zsyncAsset,
 				resolveError);
 				if (resolveOk && !zsyncAsset.length)

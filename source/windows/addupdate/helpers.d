@@ -138,6 +138,12 @@ public string buildUpdateInfo(MethodKind kind, string raw, string pattern = "") 
 	}
 }
 
+// Name of the AppImage file the app was installed from, without its extension
+public string installedFileName(string sanitizedName) {
+	auto installedAppManifest = Manifest.loadFromAppDir(buildPath(installBaseDir(), sanitizedName));
+	return installedAppManifest is null ? "" : installedAppManifest.sourceFileName;
+}
+
 // Writes updateInfo into the manifest.json for the given sanitizedName Throws FileException on failure
 public void saveUpdateInfo(string sanitizedName, string updateInfo) {
 	string appDir = buildPath(installBaseDir(), sanitizedName);

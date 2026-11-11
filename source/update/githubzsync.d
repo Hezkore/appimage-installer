@@ -5,19 +5,21 @@ module update.githubzsync;
 import std.exception : collectException;
 import std.file : exists, remove, mkdirRecurse, FileException;
 import std.json : JSONValue;
-import std.path : buildPath, dirName;
+import std.path : buildPath, dirName, stripExtension;
 import std.string : endsWith, split, startsWith, strip;
 import std.stdio : writeln;
 
 import appimage.manifest : Manifest;
 import constants : TAG_LATEST, APPLICATIONS_SUBDIR, UPDATE_SUBDIR;
 import types : InstallMethod;
-import update.common : normalizeUpdateInfoPattern, downloadFile, finishInstall, readManifestFields;
+import update.common : normalizeUpdateInfoPattern, withoutVersion, downloadFile, finishInstall,
+	readManifestFields;
 import update.githubcommon : assetMatchesHost, fetchGitHubRelease;
 import update.zsync : checkZsyncForUpdate, performZsyncUpdate;
 
 private enum string PREFIX = "gh-releases-zsync|";
-private enum string ZSYNC_ASSET_PATTERN = "*.zsync";
+private enum string ZSYNC_EXTENSION = ".zsync";
+private enum string ZSYNC_ASSET_PATTERN = "*" ~ ZSYNC_EXTENSION;
 
 // True when updateInfo encodes a GitHub Releases zsync update method
 public bool isGitHubZsync(string updateInfo) {
@@ -71,11 +73,27 @@ private bool resolveGitHubZsyncUrl(
 	return false;
 }
 
-// Queries the latest release of user/repo for a .zsync asset built for this machine
-// Returns true and sets assetName on success, false and sets error on failure
+// Picks the .zsync asset that belongs to the installed AppImage file
+// A release can hold several builds of one app, so only a lone asset or a name match is certain
+private string pickZsyncAsset(const string[] assetNames, string installedFileName) {
+	if (assetNames.length == 1)
+		return assetNames[0];
+	if (!installedFileName.length)
+		return "";
+	foreach (name; assetNames) {
+		string appImageName = name[0 .. $ - ZSYNC_EXTENSION.length].stripExtension;
+		if (withoutVersion(appImageName) == withoutVersion(installedFileName))
+			return name;
+	}
+	return "";
+}
+
+// Queries the latest release of user/repo for the .zsync asset of the installed AppImage file
+// Returns true on success with assetName left empty when no asset is a sure match
 public bool findGitHubZsyncAsset(
 	string ownerName,
 	string repositoryName,
+	string installedFileName,
 	out string assetName,
 	out string error) {
 	JSONValue releaseJson;
@@ -86,17 +104,16 @@ public bool findGitHubZsyncAsset(
 			releaseJson,
 			error))
 		return false;
+	string[] assetNames;
 	if (auto assetsPointer = "assets" in releaseJson) {
 		foreach (asset; assetsPointer.array) {
 			string name = asset["name"].str;
-			if (assetMatchesHost(name, ZSYNC_ASSET_PATTERN)) {
-				assetName = name;
-				writeln("ghzsync: found zsync asset: ", name);
-				return true;
-			}
+			if (assetMatchesHost(name, ZSYNC_ASSET_PATTERN))
+				assetNames ~= name;
 		}
 	}
-	writeln("ghzsync: no zsync asset found");
+	assetName = pickZsyncAsset(assetNames, installedFileName);
+	writeln("ghzsync: ", assetNames.length, " zsync asset(s) for this machine, picked '", assetName, "'");
 	return true;
 }
 
@@ -147,8 +164,8 @@ private bool resolveFallbackAsset(
 	string repositoryName = fields[1].strip();
 	string tag = fields[2].strip();
 	string zsyncPattern = fields[3].strip();
-	string appimagePattern = zsyncPattern.endsWith(".zsync")
-		? zsyncPattern[0 .. $ - ".zsync".length] : zsyncPattern;
+	string appimagePattern = zsyncPattern.endsWith(ZSYNC_EXTENSION)
+		? zsyncPattern[0 .. $ - ZSYNC_EXTENSION.length] : zsyncPattern;
 
 	JSONValue releaseJson;
 	if (!fetchGitHubRelease(
@@ -275,4 +292,14 @@ unittest {
 	string pattern = normalizeUpdateInfoPattern(saved).split("|")[$ - 1];
 	assert(assetMatchesHost("WowUp-CF-2.26.0.AppImage.zsync", pattern));
 	assert(!assetMatchesHost("WowUp-CF-2.26.0.AppImage", pattern));
+}
+
+// With several builds in one release, only the build that was installed is picked
+unittest {
+	string[] builds = ["App-1.1-x86_64.AppImage.zsync", "App-legacy-1.1-x86_64.AppImage.zsync"];
+	assert(pickZsyncAsset(builds, "App-legacy-1.0-x86_64") == builds[1]);
+	assert(pickZsyncAsset(builds, "App-1.0-x86_64") == builds[0]);
+	assert(pickZsyncAsset(builds, "renamed") == "");
+	assert(pickZsyncAsset(builds[0 .. 1], "renamed") == builds[0]);
+	assert(pickZsyncAsset([], "App-1.0-x86_64") == "");
 }
