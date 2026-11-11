@@ -324,7 +324,7 @@ class UninstallWindow : AppWindow {
 			: buildPath(xdgDataHome(), "applications",
 				this.iconName ~ DESKTOP_SUFFIX);
 
-		this.setChild(buildUninstallBox(
+		this.toolbarView.setContent(buildUninstallBox(
 				this.appName,
 				this.appDirectory,
 				this.iconName,

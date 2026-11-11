@@ -987,6 +987,6 @@ class UpdateWindow : AppWindow {
 		navStack.addNamed(updateBox, "update");
 		navStack.addNamed(subSlot, "sub");
 		navStack.setVisibleChildName("update");
-		this.setChild(navStack);
+		this.toolbarView.setContent(navStack);
 	}
 }
