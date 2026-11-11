@@ -164,7 +164,7 @@ private bool refreshStaleApps(InstalledApp[] apps) {
 		if (!reapplied && exists(appImagePath)) {
 			writeln("manage: looking for the missing icon of ", app.appName);
 			reapplyAppIntegration(
-				appImagePath, app.appDirectory, app.sanitizedName);
+				appImagePath, app.appDirectory, app.sanitizedName, InstallMethod.AppImage);
 			// Reload since reapplyAppIntegration saved the manifest itself
 			installedAppManifest = Manifest.loadFromAppDir(app.appDirectory);
 			if (installedAppManifest is null)

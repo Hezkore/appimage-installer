@@ -289,6 +289,21 @@ public void startDesktopDatabaseUpdate(string applicationsDir) {
 	}
 }
 
+// True when the desktop file is there and says what to run, so an empty or cut off file counts as missing
+public bool isUsableDesktopFile(string path) {
+	import std.algorithm : any;
+
+	string raw;
+	try {
+		raw = readText(path);
+	} catch (FileException) {
+		return false;
+	}
+	auto lines = raw.splitLines();
+	return lines.any!(line => line.strip() == "[Desktop Entry]")
+		&& lines.any!(line => line.strip().startsWith("Exec="));
+}
+
 // Sets key= in the [Desktop Entry] group of a desktop file's lines and removes its locale variants,
 // so the value shows in every language
 // Inserts the key after [Desktop Entry] when it was not there before
@@ -572,37 +587,47 @@ private bool doInstallAppImage(AppImage appImage) {
 
 	writeln("Installing AppImage to: ", appDir);
 
-	if (pathIsSymlink(appDir)) {
-		writeln("Removing symlink at install path: ", appDir);
-		std.file.remove(appDir);
-	} else if (exists(appDir)) {
-		writeln("Removing existing installation: ", appDir);
-		rmdirRecurse(appDir);
-	}
-
+	// The new folder is made beside the install, so an install that is there stays whole until the swap
+	string stagingDir = stagingFolderPath(appDir);
+	string stagedAppImage = buildPath(stagingDir, appImage.sanitizedName ~ ".AppImage");
 	try {
-		mkdirRecurse(appDir);
+		if (exists(stagingDir) || pathIsSymlink(stagingDir))
+			rmdirRecurse(stagingDir);
+		mkdirRecurse(stagingDir);
 	} catch (FileException error) {
-		writeln("Failed to create app directory: ", error.msg);
+		writeln("Failed to create staging directory: ", error.msg);
 		return false;
+	}
+	scope (exit) {
+		if (exists(stagingDir) || pathIsSymlink(stagingDir))
+			collectException(rmdirRecurse(stagingDir));
 	}
 
 	atomicStore(appImage.installProgress, cast(double) Progress.afterInit);
 
 	try {
 		try {
-			rename(appImage.filePath, appImageDest);
+			rename(appImage.filePath, stagedAppImage);
 		} catch (FileException) {
 			// Cross-device move, copy then remove original
-			copy(appImage.filePath, appImageDest);
+			copy(appImage.filePath, stagedAppImage);
 			std.file.remove(appImage.filePath);
 		}
-		setAttributes(appImageDest, APPIMAGE_EXEC_MODE);
-		writeln("AppImage moved to: ", appImageDest);
+		setAttributes(stagedAppImage, APPIMAGE_EXEC_MODE);
 	} catch (FileException error) {
 		writeln("Failed to move AppImage: ", error.msg);
 		return false;
 	}
+	if (!replaceAppFolder(stagingDir, appDir)) {
+		// The file goes back where the user had it, before the staging folder is cleaned up
+		try {
+			rename(stagedAppImage, appImage.filePath);
+		} catch (FileException error) {
+			collectException(copy(stagedAppImage, appImage.filePath));
+		}
+		return false;
+	}
+	writeln("AppImage moved to: ", appImageDest);
 	appImage.appImageDestPath = appImageDest;
 
 	atomicStore(appImage.installProgress, cast(double) Progress.afterCopy);
@@ -667,15 +692,6 @@ private bool doInstallExtracted(AppImage appImage) {
 
 	writeln("Extracting AppImage to: ", appExtractDir);
 
-	// pathIsSymlink() avoids throws on missing paths and catches dangling symlinks
-	if (pathIsSymlink(appExtractDir)) {
-		writeln("Removing symlink at install path: ", appExtractDir);
-		std.file.remove(appExtractDir);
-	} else if (exists(appExtractDir)) {
-		writeln("Removing existing installation: ", appExtractDir);
-		rmdirRecurse(appExtractDir);
-	}
-
 	try {
 		mkdirRecurse(appimagesBaseDir);
 	} catch (FileException error) {
@@ -687,8 +703,7 @@ private bool doInstallExtracted(AppImage appImage) {
 
 	// AppImages extract to inconsistent root names (squashfs-root, AppDir, etc)
 	// Staging inside appimagesBaseDir keeps it contained and ensures an atomic rename
-	string stagingDir = buildPath(
-		appimagesBaseDir, "." ~ appImage.sanitizedName ~ ".staging");
+	string stagingDir = stagingFolderPath(appExtractDir);
 	if (exists(stagingDir) || pathIsSymlink(stagingDir))
 		rmdirRecurse(stagingDir);
 	try {
@@ -732,14 +747,10 @@ private bool doInstallExtracted(AppImage appImage) {
 
 	atomicStore(appImage.installProgress, cast(double) Progress.afterExtract);
 
-	// Move extracted root to its final app directory
-	try {
-		rename(realExtractRoot, appExtractDir);
-		writeln("Installed to: ", appExtractDir);
-	} catch (FileException error) {
-		writeln("Failed to rename extracted directory: ", error.msg);
+	// An install that is there already is replaced only now, when the new files are ready
+	if (!replaceAppFolder(realExtractRoot, appExtractDir))
 		return false;
-	}
+	writeln("Installed to: ", appExtractDir);
 
 	// Some AppImages ship a non-executable AppRun inside the squashfs
 	string appRunPath = buildPath(appExtractDir, "AppRun");
@@ -811,9 +822,132 @@ private bool doInstallExtracted(AppImage appImage) {
 	return true;
 }
 
-// Installs the AppImage using the method specified in appImage.installMethod
-public bool install(AppImage appImage) {
+// Hands what the user set for an installed app to the freshly read AppImage that replaces it,
+// so the desktop file and manifest written from that AppImage keep it
+public void applyUserSettings(AppImage newApp, const Manifest saved) {
+	newApp.portableHome = saved.portableHome;
+	newApp.portableConfig = saved.portableConfig;
+	newApp.nameIsCustom = saved.nameIsCustom;
+	if (saved.nameIsCustom)
+		newApp.appName = saved.appName;
+	newApp.commentIsCustom = saved.commentIsCustom;
+	if (saved.commentIsCustom)
+		newApp.appComment = saved.appComment;
+	// An update method chosen for this very install wins over the saved one
+	if (!newApp.pendingUpdateInfo.length && saved.updateInfo.length)
+		newApp.pendingUpdateInfo = saved.updateInfo;
+}
+
+// Where the folder of an install waits while a new one takes its place
+private enum string REPLACED_FOLDER_SUFFIX = ".old";
+private enum string STAGING_FOLDER_SUFFIX = ".staging";
+
+private string replacedFolderPath(string appDir) {
+	return buildPath(dirName(appDir), "." ~ baseName(appDir) ~ REPLACED_FOLDER_SUFFIX);
+}
+
+// Where the files of an app are prepared before they take the app folder's place
+public string stagingFolderPath(string appDir) {
+	return buildPath(dirName(appDir), "." ~ baseName(appDir) ~ STAGING_FOLDER_SUFFIX);
+}
+
+// Moves the portable data of one app folder into another
+// Data that is in the target already stays, since that is what the app uses now
+private void movePortableData(string fromAppDir, string toAppDir) {
+	foreach (portableDirOf; [&portableHomeDir, &portableConfigDir]) {
+		string from = portableDirOf(fromAppDir);
+		string to = portableDirOf(toAppDir);
+		if (!exists(from) || !isDir(from))
+			continue;
+		try {
+			mkdirRecurse(dirName(to));
+			// A launch can have made an empty folder there meanwhile
+			if (exists(to) && isDir(to) && dirEntries(to, SpanMode.shallow).empty)
+				rmdir(to);
+			if (exists(to)) {
+				writeln("install: ", to, " holds data already, not taking ", from);
+				continue;
+			}
+			rename(from, to);
+		} catch (FileException error) {
+			writeln("install: could not move ", from, " to ", to, ": ", error.msg);
+		}
+	}
+}
+
+// Carries the portable data over from the folder a new install replaced, then removes that folder
+private void finishReplacedFolder(string replacedDir, string appDir) {
+	movePortableData(replacedDir, appDir);
+	collectException(rmdirRecurse(replacedDir));
+}
+
+// Puts a prepared folder in place of the app folder
+// An install that is there keeps its folder until the new one is in place, and hands over its portable data
+private bool replaceAppFolder(string preparedDir, string appDir) {
+	string replacedDir = replacedFolderPath(appDir);
+	bool hadInstall = false;
+	try {
+		// pathIsSymlink() avoids throws on missing paths and catches dangling symlinks
+		if (pathIsSymlink(appDir)) {
+			writeln("Removing symlink at install path: ", appDir);
+			std.file.remove(appDir);
+		} else if (exists(appDir)) {
+			writeln("Replacing existing installation: ", appDir);
+			rename(appDir, replacedDir);
+			hadInstall = true;
+		}
+		rename(preparedDir, appDir);
+	} catch (FileException error) {
+		writeln("Failed to put the new files in place: ", error.msg);
+		if (hadInstall && !exists(appDir))
+			collectException(rename(replacedDir, appDir));
+		return false;
+	}
+	if (hadInstall)
+		finishReplacedFolder(replacedDir, appDir);
+	return true;
+}
+
+// Completes an install that was cut off between taking the old folder away and finishing the new one
+private void recoverInterruptedInstall(string appDir) {
+	string replacedDir = replacedFolderPath(appDir);
+	if (!exists(replacedDir))
+		return;
+	writeln("install: finishing an install of ", appDir, " that was cut off");
+	if (exists(appDir)) {
+		finishReplacedFolder(replacedDir, appDir);
+		return;
+	}
+	try {
+		rename(replacedDir, appDir);
+	} catch (FileException error) {
+		writeln("install: could not bring back ", replacedDir, ": ", error.msg);
+	}
+}
+
+private bool installByMethod(AppImage appImage) {
 	if (appImage.installMethod == InstallMethod.Extracted)
 		return doInstallExtracted(appImage);
 	return doInstallAppImage(appImage);
+}
+
+// Installs the AppImage using the method specified in appImage.installMethod
+// An app that is installed already keeps its install method, its portable data and what the user set for it
+public bool install(AppImage appImage) {
+	string appDirectory = buildPath(installBaseDir(), appImage.sanitizedName);
+	recoverInterruptedInstall(appDirectory);
+	auto previous = Manifest.loadFromAppDir(appDirectory);
+	if (previous is null)
+		return installByMethod(appImage);
+
+	appImage.installMethod = previous.installMethod;
+	applyUserSettings(appImage, previous);
+	if (!installByMethod(appImage))
+		return false;
+	auto installedAppManifest = Manifest.loadFromAppDir(appDirectory);
+	if (installedAppManifest !is null) {
+		installedAppManifest.keepHistoryFrom(previous);
+		installedAppManifest.save();
+	}
+	return true;
 }

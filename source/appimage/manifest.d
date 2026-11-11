@@ -61,21 +61,22 @@ class Manifest {
 
 	private string loadedPath;
 
-	// Takes over the update method and what describes the first install from the manifest
-	// this one replaces after an update installed the app again
-	// Name, comment and portable settings reach the new manifest through the AppImage it is written from
-	void keepInstallDetailsFrom(const Manifest previous) {
+	// Takes over the history of the install this manifest replaces, after the app was installed again
+	// What the user set reaches the new manifest through the AppImage it is written from
+	void keepHistoryFrom(const Manifest previous) {
 		this.installedAt = previous.installedAt;
+		this.iconCheckedVersion = previous.iconCheckedVersion;
+		this.lastCheckedAt = previous.lastCheckedAt;
+	}
+
+	// Takes over which file the app first came from, after an update installed it
+	// again from a download that only has a temporary name
+	void keepSourceFrom(const Manifest previous) {
 		this.originalSourceFile = previous.originalSourceFile;
 		this.sourceFileName = previous.sourceFileName;
 		this.sourceFileSize = previous.sourceFileSize;
 		this.sourceFileModified = previous.sourceFileModified;
 		this.sourceFileHash = previous.sourceFileHash;
-		this.iconCheckedVersion = previous.iconCheckedVersion;
-		this.lastCheckedAt = previous.lastCheckedAt;
-		// An app that had no update method takes the one its new version brings
-		if (previous.updateInfo.length)
-			this.updateInfo = previous.updateInfo;
 	}
 
 	// Canonical path to the manifest inside an app directory
@@ -115,6 +116,7 @@ class Manifest {
 			manifest.sourceFileModified = field("sourceFileModified");
 			manifest.sourceFileHash = field("sourceFileHash");
 			manifest.zsyncSha1 = field("zsyncSha1");
+			manifest.architecture = field("architecture");
 			manifest.installedFileStamp = field("installedFileStamp");
 			manifest.installedIconName = field("installedIconName");
 			manifest.iconCheckedVersion = field("iconCheckedVersion");

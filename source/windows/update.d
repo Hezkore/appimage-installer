@@ -261,7 +261,6 @@ private void buildUpdateFlow(
 	string initialStatusKey,
 	string doneKey,
 	string noUpdateKey,
-	string failedKey,
 	bool delegate(ref double, ref string, ref bool, out string) updateDelegate,
 	void delegate(void delegate(), void delegate()) doWork,
 	void delegate() onDisableBack = null,
@@ -435,7 +434,7 @@ private void buildUpdateFlow(
 					}
 				}
 				immutable string doneDesc =
-					updateSuccess ? "" : L(failedKey, updateError);
+					updateSuccess ? "" : L("update.failed", updateError);
 				descLabel.setLabel(doneDesc);
 				descLabel.setVisible(doneDesc.length > 0);
 				titleStack.setVisibleChildName("done");
@@ -494,10 +493,13 @@ private void buildUpdateFlow(
 							updateError, shouldCancel);
 						}, doneHandler);
 					} else {
+						// The update stops here, and the page names the reason instead of the raw marker
+						updateError = L("update.sig.invalid.title");
 						progressBar.setFraction(1.0);
 						showDoneState();
 					}
 				} catch (ErrorWrap) {
+					updateError = L("update.sig.invalid.title");
 					progressBar.setFraction(1.0);
 					showDoneState();
 				}
@@ -553,7 +555,6 @@ package void buildDirectLinkUpdateFlow(
 		"update.direct.status.start",
 		"update.direct.done",
 		"update.direct.done.no_update",
-		"update.direct.failed",
 		(ref double progress, ref string statusText,
 			ref bool wasUpdated, out string updateError) =>
 			performDirectLinkUpdate(
@@ -582,7 +583,6 @@ package void buildZsyncUpdateFlow(
 		"update.zsync.status.start",
 		"update.zsync.done",
 		"update.zsync.done.no_update",
-		"update.zsync.failed",
 		(ref double progress, ref string statusText,
 			ref bool wasUpdated, out string updateError) =>
 			performZsyncUpdate(
@@ -611,7 +611,6 @@ package void buildGitHubZsyncUpdateFlow(
 		"update.zsync.status.start",
 		"update.zsync.done",
 		"update.zsync.done.no_update",
-		"update.zsync.failed",
 		(ref double progress, ref string statusText,
 			ref bool wasUpdated, out string updateError) =>
 			performGitHubZsyncUpdate(
@@ -639,7 +638,6 @@ package void buildGitHubReleaseUpdateFlow(
 		"update.gh.status.start",
 		"update.gh.done",
 		"update.gh.done.no_update",
-		"update.gh.failed",
 		(ref double progress, ref string statusText,
 			ref bool wasUpdated, out string updateError) =>
 			performGitHubReleaseUpdate(
@@ -667,7 +665,6 @@ package void buildGitHubLinuxManifestUpdateFlow(
 		"update.gh.status.start",
 		"update.gh.done",
 		"update.gh.done.no_update",
-		"update.gh.failed",
 		(ref double progress, ref string statusText,
 			ref bool wasUpdated, out string updateError) =>
 			performGitHubLinuxManifestUpdate(
@@ -698,7 +695,6 @@ package void buildPlingUpdateFlow(
 		"update.pling.status.start",
 		"update.pling.done",
 		"update.pling.done.no_update",
-		"update.pling.failed",
 		(ref double progress, ref string statusText,
 			ref bool wasUpdated, out string updateError) =>
 			performPlingUpdate(

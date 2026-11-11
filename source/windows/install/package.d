@@ -617,7 +617,9 @@ class InstallWindow : AppWindow {
 	}
 
 	private void runInstallation() {
-		this.appImage.install();
+		// Thrown so the window says the work failed instead of showing a finished install
+		if (!this.appImage.install())
+			throw new Exception("Installation failed");
 	}
 
 	private void onInstallationComplete() {

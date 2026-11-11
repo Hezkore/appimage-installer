@@ -34,7 +34,7 @@ import gtk.types : SelectionMode, StackTransitionType;
 import appimage : AppImage;
 import apputils : installBaseDir, readableFileSize;
 import appimage.manifest : Manifest;
-import appimage.install : clearAppDirExceptMeta, rewriteDesktopForModeSwitch;
+import appimage.install : clearAppDirExceptMeta, rewriteDesktopForModeSwitch, stagingFolderPath;
 import types : InstallMethod;
 import windows.base : applyCssToWidget, makeSlideDownRevealer, REVEAL_MS;
 import windows.base : ACTION_BTN_WIDTH, ACTION_BTN_HEIGHT;
@@ -429,8 +429,7 @@ Box buildOptimizeBox(
 
 				if (method == InstallMethod.Extracted) {
 					string appimagesBaseDir = installBaseDir();
-					string stagingDir = buildPath(
-					appimagesBaseDir, "." ~ sanitizedName ~ ".staging");
+					string stagingDir = stagingFolderPath(buildPath(appimagesBaseDir, sanitizedName));
 					if (exists(stagingDir))
 						collectException(rmdirRecurse(stagingDir));
 					try {
@@ -503,9 +502,11 @@ Box buildOptimizeBox(
 
 				atomicStore(workAppImage.installProgress, 0.9);
 
-				if (existing !is null) {
-					existing.installMethod = method;
-					existing.save();
+				// Read again, since the extraction took a while and other things save here too
+				auto current = Manifest.loadFromAppDir(appDirectory);
+				if (current !is null) {
+					current.installMethod = method;
+					current.save();
 				}
 
 				workAppImage.installedAppDirectory = appDirectory;

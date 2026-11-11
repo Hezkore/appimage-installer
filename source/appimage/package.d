@@ -60,6 +60,8 @@ class AppImage {
 	Image appIconWidget;
 	string[] desktopFileLines;
 	string sanitizedName; // Filesystem-safe lowercase, used for install dirs
+	// True when installAs() named the folder, so reading the AppImage does not rename it
+	private bool sanitizedNameIsFixed;
 	bool isFullyLoaded;
 	// False when the AppImage ships no desktop entry and its name is only the file name
 	bool hasDesktopEntry;
@@ -71,10 +73,10 @@ class AppImage {
 	// Path to the .AppImage inside installedAppDirectory in AppImage mode
 	string appImageDestPath;
 	InstallMethod installMethod = InstallMethod.AppImage;
-	// Set before install() when an existing portable.home or portable.config should be preserved
+	// What the user set for the app, taken from its manifest when it is installed again or updated
 	bool portableHome;
 	bool portableConfig;
-	// Set before install() when appName or appComment hold what the user chose in Options
+	// True when appName or appComment hold what the user chose in Options
 	bool nameIsCustom;
 	bool commentIsCustom;
 	// Written by the worker thread so the main thread can poll the progress bar
@@ -126,7 +128,8 @@ class AppImage {
 	}
 
 	this(string filePath) {
-		this.filePath = filePath;
+		// Absolute, since installing runs the file from another folder
+		this.filePath = filePath.length ? filePath.absolutePath.buildNormalizedPath : "";
 		this.fileName = filePath.baseName.stripExtension;
 
 		this.fileSize = L("common.unknown");
@@ -202,7 +205,15 @@ class AppImage {
 		writeln("Default icon: ", this.defaultIconName);
 	}
 
-	private bool validateAppImageFile() {
+	// Names the folder this AppImage is installed under, for an app that is installed already
+	// Its own name can differ from that folder after a rename upstream or a language change
+	void installAs(string sanitizedName) {
+		this.sanitizedName = sanitizedName;
+		this.sanitizedNameIsFixed = true;
+	}
+
+	// True when the file is an AppImage and not, say, a web page a download returned
+	bool isAppImageFile() {
 		if (!exists(this.filePath) || !isFile(this.filePath)) {
 			writeln("Path is not a regular file: ", this.filePath);
 			return false;
@@ -332,7 +343,7 @@ class AppImage {
 
 		this.isFullyLoaded = false;
 
-		if (!this.validateAppImageFile())
+		if (!this.isAppImageFile())
 			return;
 
 		// Temporarily make executable so the AppImage runtime can mount it
@@ -444,7 +455,8 @@ class AppImage {
 			this.appIconWidget = Image.newFromFile(dirIconPath);
 		}
 
-		this.sanitizedName = buildSanitizedName(this.appName);
+		if (!this.sanitizedNameIsFixed)
+			this.sanitizedName = buildSanitizedName(this.appName);
 
 		this.isFullyLoaded = true;
 	}

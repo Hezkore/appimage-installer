@@ -46,7 +46,7 @@ import windows.options : buildOptionsBox;
 import appimage : AppImage;
 import appimage.manifest : Manifest;
 import appimage.install : portableHomeDir, portableConfigDir, writeDesktopFile, launchInstalledApp,
-	startDesktopDatabaseUpdate;
+	startDesktopDatabaseUpdate, isUsableDesktopFile;
 import appimage.icon : reinstallIconFromExtractedDir, reinstallIconFromAppImageFile;
 import constants : CSS_PRIORITY_USER, APPLICATIONS_SUBDIR, DESKTOP_SUFFIX,
 	APPIMAGE_EXEC_MODE;
@@ -347,57 +347,62 @@ package AppRowResult buildAppRow(ManageWindow win, ref InstalledApp entry) {
 				string desktopInAppDir = buildPath(
 					capturedFixDir, APPLICATIONS_SUBDIR,
 					capturedFixSanitized ~ DESKTOP_SUFFIX);
-				if (exists(appImagePath)) {
-					reapplyAppIntegration(
-						appImagePath,
-						capturedFixDir,
-						capturedFixSanitized);
-				} else if (capturedFixMethod == InstallMethod.Extracted) {
-					// AppImage is gone but the extracted dir may still be here
-					// Generate a minimal desktop file from what the manifest knows
-					string appRunPath = buildPath(capturedFixDir, "AppRun");
-					if (!exists(appRunPath)) {
-						writeln("fix: AppRun not found: ", appRunPath);
+				// A launcher file that is still there has the right command, so only its link is made again
+				if (!isUsableDesktopFile(desktopInAppDir)) {
+					if (exists(appImagePath)) {
+						reapplyAppIntegration(
+							appImagePath,
+							capturedFixDir,
+							capturedFixSanitized,
+							capturedFixMethod);
+					} else if (capturedFixMethod == InstallMethod.Extracted) {
+						// AppImage is gone but the extracted dir may still be here
+						// Generate a minimal desktop file from what the manifest knows
+						string appRunPath = buildPath(capturedFixDir, "AppRun");
+						if (!exists(appRunPath)) {
+							writeln("fix: AppRun not found: ", appRunPath);
+							return;
+						}
+						auto loadedManifest = Manifest.loadFromAppDir(
+							capturedFixDir);
+						auto syntheticApp = new AppImage("");
+						syntheticApp.installAs(capturedFixSanitized);
+						syntheticApp.installMethod = InstallMethod.Extracted;
+						syntheticApp.appName = capturedFixSanitized;
+						if (loadedManifest !is null) {
+							if (loadedManifest.appName.length)
+								syntheticApp.appName = loadedManifest.appName;
+							syntheticApp.appComment = loadedManifest.appComment;
+							syntheticApp.installedIconName =
+								loadedManifest.installedIconName;
+							syntheticApp.portableHome =
+								loadedManifest.portableHome;
+							syntheticApp.portableConfig =
+								loadedManifest.portableConfig;
+						}
+						syntheticApp.desktopFileLines = [
+							"[Desktop Entry]",
+							"Type=Application",
+							"Name=" ~ syntheticApp.appName,
+							"Exec=" ~ appRunPath,
+							"Icon=" ~ syntheticApp.installedIconName,
+							"Terminal=false",
+							"Categories=Utility;",
+						];
+						if (syntheticApp.appComment.length)
+							syntheticApp.desktopFileLines ~= "Comment=" ~ syntheticApp.appComment;
+						try {
+							mkdirRecurse(buildPath(
+								capturedFixDir, APPLICATIONS_SUBDIR));
+						} catch (FileException) {
+						}
+						writeDesktopFile(
+							syntheticApp, desktopInAppDir,
+							capturedFixDir, appRunPath);
+					} else {
+						writeln("fix: AppImage not found: ", appImagePath);
 						return;
 					}
-					auto loadedManifest = Manifest.loadFromAppDir(
-						capturedFixDir);
-					auto syntheticApp = new AppImage("");
-					syntheticApp.sanitizedName = capturedFixSanitized;
-					syntheticApp.installMethod = InstallMethod.Extracted;
-					if (loadedManifest !is null) {
-						syntheticApp.appName =
-							loadedManifest.appName.length
-							? loadedManifest.appName : capturedFixSanitized;
-						syntheticApp.installedIconName =
-							loadedManifest.installedIconName;
-						syntheticApp.portableHome =
-							loadedManifest.portableHome;
-						syntheticApp.portableConfig =
-							loadedManifest.portableConfig;
-					} else {
-						syntheticApp.appName = capturedFixSanitized;
-					}
-					syntheticApp.desktopFileLines = [
-						"[Desktop Entry]",
-						"Type=Application",
-						"Name=" ~ syntheticApp.appName,
-						"Exec=" ~ appRunPath,
-						"Icon=" ~ syntheticApp.installedIconName,
-						"Terminal=false",
-						"Categories=Utility;",
-					];
-					try {
-						mkdirRecurse(buildPath(
-							capturedFixDir, APPLICATIONS_SUBDIR));
-					} catch (FileException) {
-					}
-					writeDesktopFile(
-						syntheticApp, desktopInAppDir,
-						capturedFixDir, appRunPath);
-				} else {
-					writeln("fix: AppImage not found: ", appImagePath);
-					return;
 				}
 				if (!exists(desktopInAppDir)) {
 					writeln("fix: desktop still missing after reapply: ",

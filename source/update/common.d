@@ -4,7 +4,8 @@ module update.common;
 
 import std.conv : to;
 import std.exception : collectException, ErrnoException;
-import std.file : FileException, exists, isDir, mkdirRecurse, rename, rmdir, rmdirRecurse, setAttributes;
+import std.file : FileException, exists, rename, rmdir, setAttributes;
+static import std.file;
 import std.process : ProcessException;
 import std.net.curl : HTTP, CurlException;
 import std.path : buildPath, dirName;
@@ -14,7 +15,7 @@ import std.stdio : File, writeln;
 import appimage : AppImage;
 import appimage.elf : readElfInfo;
 import appimage.icon : installIconFromCachedData;
-import appimage.install : writeDesktopFile;
+import appimage.install : writeDesktopFile, applyUserSettings;
 import appimage.manifest : Manifest, fileStamp;
 import appimage.signature : SignatureStatus, SignatureResult, checkSignature;
 import types : InstallMethod;
@@ -147,10 +148,12 @@ public void makeExecutable(string path) {
 
 // Remounts the AppImage to refresh its icon and version, and rewrites the desktop file
 // with the Update and Uninstall actions
+// installMethod says how the app runs: from that AppImage, or from the files extracted into appDirectory
 public void reapplyAppIntegration(
 	string appImagePath,
 	string appDirectory,
-	string sanitizedName) {
+	string sanitizedName,
+	InstallMethod installMethod) {
 	import glib.error : ErrorWrap;
 
 	string metaDir = buildPath(appDirectory, APPLICATIONS_SUBDIR);
@@ -159,8 +162,8 @@ public void reapplyAppIntegration(
 	string stampBeforeRead = fileStamp(appImagePath);
 
 	auto updatedApp = new AppImage(appImagePath);
-	updatedApp.sanitizedName = sanitizedName;
-	updatedApp.installMethod = InstallMethod.AppImage;
+	updatedApp.installAs(sanitizedName);
+	updatedApp.installMethod = installMethod;
 	auto manifestBeforeRead = Manifest.loadFromAppDir(appDirectory);
 	if (manifestBeforeRead !is null)
 		updatedApp.installedIconName = manifestBeforeRead.installedIconName;
@@ -187,7 +190,10 @@ public void reapplyAppIntegration(
 	if (updatedApp.isFullyLoaded) {
 		if (installedAppManifest !is null)
 			applyUserSettings(updatedApp, installedAppManifest);
-		writeDesktopFile(updatedApp, desktopPath, "", appImagePath);
+		if (installMethod == InstallMethod.Extracted)
+			writeDesktopFile(updatedApp, desktopPath, appDirectory, buildPath(appDirectory, "AppRun"));
+		else
+			writeDesktopFile(updatedApp, desktopPath, "", appImagePath);
 	}
 	if (installedAppManifest is null)
 		return;
@@ -198,6 +204,7 @@ public void reapplyAppIntegration(
 			installedAppManifest.installedIconName = updatedApp.installedIconName;
 		if (updatedApp.releaseVersion.length)
 			installedAppManifest.releaseVersion = updatedApp.releaseVersion;
+		installedAppManifest.architecture = updatedApp.architecture;
 		// After applyUserSettings these hold what the user set, or else what the new version says
 		// An AppImage without a desktop entry has only its file name to offer, so the saved name stays
 		if (updatedApp.hasDesktopEntry) {
@@ -206,19 +213,6 @@ public void reapplyAppIntegration(
 		}
 	}
 	installedAppManifest.save();
-}
-
-// Hands what the user set for an installed app to the freshly read AppImage that replaces it,
-// so the desktop file and manifest written from that AppImage keep it
-private void applyUserSettings(AppImage newApp, const Manifest saved) {
-	newApp.portableHome = saved.portableHome;
-	newApp.portableConfig = saved.portableConfig;
-	newApp.nameIsCustom = saved.nameIsCustom;
-	if (saved.nameIsCustom)
-		newApp.appName = saved.appName;
-	newApp.commentIsCustom = saved.commentIsCustom;
-	if (saved.commentIsCustom)
-		newApp.appComment = saved.appComment;
 }
 
 // Reads an app's details again when its AppImage was replaced from outside, such as by the app's own updater
@@ -240,7 +234,7 @@ public bool reapplyIfFileChanged(string appDirectory, string sanitizedName) {
 		return false;
 	}
 	writeln("update: ", appImagePath, " changed since it was last read");
-	reapplyAppIntegration(appImagePath, appDirectory, sanitizedName);
+	reapplyAppIntegration(appImagePath, appDirectory, sanitizedName, InstallMethod.AppImage);
 	return true;
 }
 
@@ -258,6 +252,8 @@ public bool readManifestFields(
 	method = installedAppManifest.installMethod;
 	return true;
 }
+
+private enum string NOT_AN_APPIMAGE_ERROR = "The file is not an AppImage.";
 
 // Final install step shared by all update methods, handles AppImage and Extracted modes
 // Pass skipSigCheck when the user has already been warned about a bad or missing signature
@@ -277,6 +273,13 @@ public bool finishInstall(
 	bool delegate() shouldCancel = null) {
 	if (isCancelled(shouldCancel))
 		return false;
+
+	// A download can be anything, such as a web page from a link that moved
+	if (!(new AppImage(tempPath)).isAppImageFile()) {
+		collectException(std.file.remove(tempPath));
+		errorMessage = NOT_AN_APPIMAGE_ERROR;
+		return false;
+	}
 
 	// Verify GPG signature before touching anything on disk
 	if (!skipSigCheck) {
@@ -315,7 +318,7 @@ public bool finishInstall(
 		collectException(rmdir(dirName(tempPath)));
 		progress = progressEnd;
 		writeln("update: replaced AppImage at ", dest);
-		reapplyAppIntegration(dest, appDirectory, sanitizedName);
+		reapplyAppIntegration(dest, appDirectory, sanitizedName, InstallMethod.AppImage);
 		// The new file is the latest release, so the stored flag is now stale
 		auto updatedManifest = Manifest.loadFromAppDir(appDirectory);
 		if (updatedManifest !is null && updatedManifest.updateAvailable) {
@@ -336,7 +339,7 @@ public bool finishInstall(
 		return false;
 
 	auto newApp = new AppImage(tempPath);
-	newApp.sanitizedName = sanitizedName;
+	newApp.installAs(sanitizedName);
 	newApp.installMethod = InstallMethod.Extracted;
 
 	import glib.error : ErrorWrap;
@@ -353,6 +356,14 @@ public bool finishInstall(
 	} catch (ProcessException error) {
 		errorMessage = "Failed to read new AppImage: " ~ error.msg;
 		return false;
+	} catch (FileException error) {
+		errorMessage = "Failed to read new AppImage: " ~ error.msg;
+		return false;
+	}
+	// Nothing installed is touched for a download that cannot be read
+	if (!newApp.isFullyLoaded) {
+		errorMessage = "Failed to read new AppImage.";
+		return false;
 	}
 	if (isCancelled(shouldCancel))
 		return false;
@@ -360,73 +371,19 @@ public bool finishInstall(
 	progress = progressStart + LOAD_FRAC * span;
 	progressText = textExtracting;
 
-	// What the user set survives re-extraction, and the new AppImage is told before
-	// install() so the desktop file is written right in one shot
+	// install() keeps what the user set and the portable data, since the app is installed already
 	auto oldManifest = Manifest.loadFromAppDir(appDirectory);
-	if (oldManifest !is null)
-		applyUserSettings(newApp, oldManifest);
-
-	// Portable data dirs sit inside the metadata dir, which gets wiped by re-extraction
-	// Move them to a sibling path (same filesystem, so rename is atomic) before the wipe
-	string portableHomeBackup, portableConfigBackup;
-	string parentDir = dirName(appDirectory);
-	string metaDirSrc = buildPath(appDirectory, APPLICATIONS_SUBDIR);
-	string portableHomeSrc = buildPath(metaDirSrc, "portable.home");
-	string portableConfigSrc = buildPath(metaDirSrc, "portable.config");
-	if (exists(portableHomeSrc) && isDir(portableHomeSrc)) {
-		portableHomeBackup = buildPath(parentDir, "." ~ sanitizedName ~ ".portable_home_bak");
-		try {
-			if (exists(portableHomeBackup))
-				rmdirRecurse(portableHomeBackup);
-			rename(portableHomeSrc, portableHomeBackup);
-		} catch (FileException e) {
-			writeln("update: could not back up portable.home: ", e.msg);
-			portableHomeBackup = "";
-		}
-	}
-	if (exists(portableConfigSrc) && isDir(portableConfigSrc)) {
-		portableConfigBackup = buildPath(parentDir, "." ~ sanitizedName ~ ".portable_config_bak");
-		try {
-			if (exists(portableConfigBackup))
-				rmdirRecurse(portableConfigBackup);
-			rename(portableConfigSrc, portableConfigBackup);
-		} catch (FileException e) {
-			writeln("update: could not back up portable.config: ", e.msg);
-			portableConfigBackup = "";
-		}
-	}
-	if (isCancelled(shouldCancel)) {
-		if (portableHomeBackup.length && exists(portableHomeBackup))
-			collectException(rename(portableHomeBackup, portableHomeSrc));
-		if (portableConfigBackup.length && exists(portableConfigBackup))
-			collectException(rename(portableConfigBackup, portableConfigSrc));
-		return false;
-	}
-
 	if (!newApp.install()) {
-		// Restore backups on failure
-		if (portableHomeBackup.length && exists(portableHomeBackup))
-			collectException(rename(portableHomeBackup, portableHomeSrc));
-		if (portableConfigBackup.length && exists(portableConfigBackup))
-			collectException(rename(portableConfigBackup, portableConfigSrc));
 		errorMessage = "Extraction failed.";
 		return false;
 	}
 
-	// Restore portable data dirs into the freshly extracted metadata directory
-	if (portableHomeBackup.length && exists(portableHomeBackup))
-		collectException(rename(portableHomeBackup,
-				buildPath(newApp.installedAppDirectory, APPLICATIONS_SUBDIR, "portable.home")));
-	if (portableConfigBackup.length && exists(portableConfigBackup))
-		collectException(rename(portableConfigBackup,
-				buildPath(newApp.installedAppDirectory, APPLICATIONS_SUBDIR, "portable.config")));
-
-	// install() wrote a fresh manifest from the new AppImage alone
+	// The download had only a temporary name, so the app still counts as coming from its first file
 	if (oldManifest !is null) {
 		auto installedAppManifest =
 			Manifest.loadFromAppDir(newApp.installedAppDirectory);
 		if (installedAppManifest !is null) {
-			installedAppManifest.keepInstallDetailsFrom(oldManifest);
+			installedAppManifest.keepSourceFrom(oldManifest);
 			installedAppManifest.save();
 		}
 	}
