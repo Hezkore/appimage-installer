@@ -442,6 +442,7 @@ Box buildOptimizeBox(
 						collectException(rmdirRecurse(stagingDir));
 
 					setAttributes(resolvedSource, APPIMAGE_EXEC_MODE);
+					writeln("optimize: extracting ", sanitizedName);
 					auto extractResult = execute(
 					[resolvedSource, "--appimage-extract"],
 					null, Config.none, size_t.max, stagingDir);
@@ -508,6 +509,7 @@ Box buildOptimizeBox(
 					current.installMethod = method;
 					current.save();
 				}
+				writeln("optimize: ", sanitizedName, " is now stored as ", method);
 
 				workAppImage.installedAppDirectory = appDirectory;
 			},

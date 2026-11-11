@@ -718,6 +718,7 @@ Box buildOptionsBox(
 			currentPortableConfig = newPortableConfig;
 		}
 		installedAppManifest.save();
+		writeln("options: saved ", sanitizedName);
 		saveButton.setSensitive(false);
 	});
 

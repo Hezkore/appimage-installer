@@ -408,6 +408,7 @@ private void buildUpdateFlow(
 	}
 
 	void showDoneState() {
+		writeln("update: ", sanitizedName, updateSuccess ? " finished" : " failed: " ~ updateError);
 		if (isCancelled())
 			return;
 		runTimedSteps([
