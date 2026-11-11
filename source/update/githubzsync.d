@@ -17,6 +17,7 @@ import update.githubcommon : assetMatchesHost, fetchGitHubRelease;
 import update.zsync : checkZsyncForUpdate, performZsyncUpdate;
 
 private enum string PREFIX = "gh-releases-zsync|";
+private enum string ZSYNC_ASSET_PATTERN = "*.zsync";
 
 // True when updateInfo encodes a GitHub Releases zsync update method
 public bool isGitHubZsync(string updateInfo) {
@@ -70,7 +71,7 @@ private bool resolveGitHubZsyncUrl(
 	return false;
 }
 
-// Queries the latest release of user/repo for any .zsync asset
+// Queries the latest release of user/repo for a .zsync asset built for this machine
 // Returns true and sets assetName on success, false and sets error on failure
 public bool findGitHubZsyncAsset(
 	string ownerName,
@@ -88,7 +89,7 @@ public bool findGitHubZsyncAsset(
 	if (auto assetsPointer = "assets" in releaseJson) {
 		foreach (asset; assetsPointer.array) {
 			string name = asset["name"].str;
-			if (name.endsWith(".zsync")) {
+			if (assetMatchesHost(name, ZSYNC_ASSET_PATTERN)) {
 				assetName = name;
 				writeln("ghzsync: found zsync asset: ", name);
 				return true;
@@ -266,4 +267,12 @@ public bool performGitHubZsyncUpdate(
 		return true;
 	}
 	return false;
+}
+
+// An asset name saved as the pattern keeps matching the same asset in later releases
+unittest {
+	string saved = PREFIX ~ "WowUp|WowUp.CF|latest|WowUp-CF-2.25.5.AppImage.zsync";
+	string pattern = normalizeUpdateInfoPattern(saved).split("|")[$ - 1];
+	assert(assetMatchesHost("WowUp-CF-2.26.0.AppImage.zsync", pattern));
+	assert(!assetMatchesHost("WowUp-CF-2.26.0.AppImage", pattern));
 }

@@ -551,7 +551,7 @@ Box buildAddUpdateMethodBox(
 				} else if (zsyncAsset.length) {
 					// .zsync asset found, use gh-releases-zsync directly
 					immutable string updateInfo = buildUpdateInfo(
-					MethodKind.GitHubZsync, capturedRepo);
+					MethodKind.GitHubZsync, capturedRepo, zsyncAsset);
 					testContentRevealer.setRevealChild(false);
 					goForward("test");
 					onDisableBack();

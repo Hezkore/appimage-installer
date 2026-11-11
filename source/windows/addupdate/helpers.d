@@ -111,6 +111,7 @@ public bool isValidPattern(string s) {
 
 // Builds the updateInfo string for the given method from raw input
 // For GitHubRelease, raw is "owner/repository" and pattern is the wildcard filename string
+// For GitHubZsync, pattern is the name of the .zsync asset found in the release
 public string buildUpdateInfo(MethodKind kind, string raw, string pattern = "") {
 	raw = normalizeGitHubInput(raw);
 	final switch (kind) {
@@ -118,7 +119,7 @@ public string buildUpdateInfo(MethodKind kind, string raw, string pattern = "") 
 		auto slashPosition = raw.indexOf('/');
 		return "gh-releases-zsync|"
 			~ raw[0 .. slashPosition] ~ "|" ~ raw[slashPosition + 1 .. $]
-			~ "|latest|*-x86_64.AppImage.zsync";
+			~ "|latest|" ~ pattern.strip();
 	case MethodKind.GitHubRelease:
 		auto slashPosition = raw.indexOf('/');
 		return "gh-releases|"
