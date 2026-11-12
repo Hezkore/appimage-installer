@@ -3,7 +3,7 @@ module constants;
 import std.conv : octal;
 
 // Version string written into each manifest at install time
-enum string INSTALLER_VERSION = "0.2.5";
+enum string INSTALLER_VERSION = "0.2.6";
 
 // First line of --version, followed by the version, which an update reads to see that the new installer runs
 enum string INSTALLER_VERSION_LINE_PREFIX = "AppImage Installer v";
