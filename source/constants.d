@@ -5,6 +5,9 @@ import std.conv : octal;
 // Version string written into each manifest at install time
 enum string INSTALLER_VERSION = "0.2.5";
 
+// First line of --version, followed by the version, which an update reads to see that the new installer runs
+enum string INSTALLER_VERSION_LINE_PREFIX = "AppImage Installer v";
+
 // Binary name used in User-Agent headers and to register the desktop installer action
 enum string INSTALLER_NAME = "appimage-installer";
 
@@ -53,14 +56,16 @@ enum string APPIMAGE_FUSE_MOUNT_PREFIX = "/tmp/.mount_";
 // Linux process file system, read to verify whether a PID belongs to a live process
 enum string PROC_DIRECTORY = "/proc";
 
-// Shared temporary directory and file prefixes used during updates and checks
+// Temporary directory and file prefix used while a signature is checked
 enum string TEMP_DIRECTORY_PATH = "/tmp";
-enum string INSTALLER_UPDATE_TEMP_DIRECTORY_PREFIX =
-	"appimage-installer-update-";
 enum string SIGNATURE_TEMP_FILE_PREFIX = "aisig_";
 
 // Desktop file name that registers the installer as the AppImage handler
 enum string INSTALLER_DESKTOP_FILE = "com.hezkore.appimage.installer.desktop";
+
+// Systemd user units that run the background update check
+enum string SYSTEMD_SERVICE_FILE = "appimage-installer-update.service";
+enum string SYSTEMD_TIMER_FILE = "appimage-installer-update.timer";
 
 // Theme icon name for the installer, matching the embedded SVG file name
 enum string INSTALLER_ICON_NAME = "com.hezkore.appimage.installer";

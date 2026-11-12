@@ -40,9 +40,10 @@ import apputils : installBaseDir, readConfigGithubToken, writeConfigGithubToken,
 	writeSystemdTimerFile, syncBgupdateDesktopFile,
 	readConfigTimerIntervalHours, writeConfigTimerIntervalHours,
 	readConfigCheckIntervalHours, writeConfigCheckIntervalHours,
-	readConfigAutoUpdate, writeConfigAutoUpdate, writeInstallerUpdateFlag;
+	readConfigAutoUpdate, writeConfigAutoUpdate;
 import constants : APPLICATIONS_SUBDIR, DESKTOP_SUFFIX, DESKTOP_PREFIX, INSTALLER_VERSION;
-import update.checker : checkInstallerUpdate;
+import constants : SYSTEMD_SERVICE_FILE, SYSTEMD_TIMER_FILE;
+import update.installer : checkInstallerUpdate;
 import lang : L;
 import windows.base : makeBackButton, ANIM_DURATION_MS;
 import windows.manage : ManageWindow;
@@ -266,7 +267,6 @@ public Box buildSettingsBox(
 				else if (hasUpdate) {
 					checkStatusLabel.setText(
 					L("manage.installer.update.version", available));
-					writeInstallerUpdateFlag(available);
 					win.setInstallerUpdateAvailable(available);
 					pendingVersion = available;
 					updateReady = true;
@@ -565,9 +565,9 @@ public Box buildSettingsBox(
 		bool newAutoUpdateValue = autoUpdateSwitch.getActive();
 		string svcDir = systemdUserDir();
 		string svcPath = buildPath(
-			svcDir, "appimage-installer-update.service");
+			svcDir, SYSTEMD_SERVICE_FILE);
 		string timerPath = buildPath(
-			svcDir, "appimage-installer-update.timer");
+			svcDir, SYSTEMD_TIMER_FILE);
 		string applicationsDir = buildPath(xdgDataHome(), "applications");
 		if (newEnabled) {
 			string svcError;
@@ -584,7 +584,7 @@ public Box buildSettingsBox(
 				if (!initialBgupdateEnabled)
 					execute([
 						"systemctl", "--user", "enable",
-						"--now", "appimage-installer-update.timer"
+						"--now", SYSTEMD_TIMER_FILE
 					]);
 			} catch (ProcessException) {
 			}
@@ -592,7 +592,7 @@ public Box buildSettingsBox(
 			try {
 				execute([
 					"systemctl", "--user", "disable",
-					"--now", "appimage-installer-update.timer"
+					"--now", SYSTEMD_TIMER_FILE
 				]);
 			} catch (ProcessException) {
 			}

@@ -21,7 +21,7 @@ import constants : DESKTOP_PREFIX, DESKTOP_SUFFIX, INSTALLER_DESKTOP_FILE;
 import constants : BGUPDATE_DESKTOP_FILE;
 import constants : APPIMAGE_EXEC_MODE;
 import appimage.manifest : Manifest;
-import apputils : xdgDataHome, installBaseDir, readDesktopFieldLocalized;
+import apputils : xdgDataHome, installBaseDir, readDesktopFieldLocalized, repairInstallerPathIn;
 import lang : L, activeLangCode;
 
 // Pixel measurements for the empty state box shown when no apps are installed
@@ -169,6 +169,10 @@ public InstalledApp[] scanInstalledApps() {
 				entry.installMethod = installedAppManifest.installMethod;
 				entry.appImageType = installedAppManifest.appImageType;
 				entry.updateAvailable = installedAppManifest.updateAvailable;
+
+				// The Update and Uninstall shortcuts of the app start the installer
+				repairInstallerPathIn(buildPath(entry.appDirectory, APPLICATIONS_SUBDIR,
+						entry.sanitizedName ~ DESKTOP_SUFFIX));
 
 				// Override name/comment with localized values from the installed desktop file
 				if (entry.desktopSymlink.length) {

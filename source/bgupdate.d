@@ -4,7 +4,7 @@ module bgupdate;
 
 import std.conv : ConvException, to;
 import std.datetime : Clock, SysTime;
-import std.file : exists, readLink, readText, write, remove, mkdirRecurse, FileException, thisExePath;
+import std.file : exists, readText, write, remove, mkdirRecurse, FileException;
 import std.json : JSONException, JSONType, JSONValue, parseJSON;
 import std.path : buildPath, dirName;
 import std.process : spawnProcess, Config;
@@ -23,12 +23,13 @@ import gio.file_icon : FileIcon;
 import gtk.application : GtkApplication = Application;
 
 import appimage.manifest : Manifest;
-import apputils : xdgDataHome, configDir, writeInstallerUpdateFlag;
-import constants : BGUPDATE_STATE_FILE_NAME, PROC_DIRECTORY, INSTALLER_ICON_NAME;
+import apputils : xdgDataHome, configDir, installerPath, executablePathOfProcess;
+import constants : BGUPDATE_STATE_FILE_NAME, INSTALLER_ICON_NAME;
 import lang : L;
 
 import update.common : parseUpdateMethodKind, UpdateMethodKind;
-import update.checker : checkOneApp, checkInstallerUpdate;
+import update.checker : checkOneApp;
+import update.installer : checkInstallerUpdate;
 import update.dispatch : applyUpdateWithProgress;
 import appimage.signature : SignatureStatus;
 import windows.manage.scan : InstalledApp, scanInstalledApps;
@@ -78,13 +79,9 @@ private bool tryClaimPidFile(out int existingPid) {
 		// File exists so check if it belongs to a live instance of this binary
 		try {
 			existingPid = to!int(readText(path).strip());
-			try {
-				if (readLink(PROC_DIRECTORY ~ "/" ~ to!string(existingPid) ~ "/exe") == thisExePath())
-					return false; // genuine bgupdate instance holds the file
-				// PID belongs to a different binary so treat the file as stale
-			} catch (FileException) {
-				// Process exited between readText and readLink so treat as stale
-			}
+			// A PID that belongs to another program or to no process means the file is stale
+			if (executablePathOfProcess(existingPid) == installerPath())
+				return false; // genuine bgupdate instance holds the file
 		} catch (ConvException) {
 			// Corrupted file so fall through to stale cleanup
 		} catch (FileException) {
@@ -278,8 +275,6 @@ public void runBackgroundUpdate(
 		if (installerCheckError.length)
 			writeln("bgupdate: installer check failed: ", installerCheckError);
 		writeln("bgupdate: installer update=", installerUpdate);
-		if (installerUpdate)
-			writeInstallerUpdateFlag(installerLatestVersion);
 
 		InstalledApp[] pendingNotify;
 		InstalledApp[] pendingSigFail;
@@ -387,7 +382,7 @@ public void runBackgroundUpdate(
 			auto manageAction = new SimpleAction("bgupdate-manage", null);
 			manageAction.connectActivate((Variant param, SimpleAction a) {
 				writeln("bgupdate: launching manager");
-				spawnInNewScope([thisExePath()]);
+				spawnInNewScope([installerPath()]);
 				writeln("bgupdate: manager launched");
 				releaseOnce();
 			});
@@ -406,7 +401,7 @@ public void runBackgroundUpdate(
 				updateAction.connectActivate((Variant param, SimpleAction a) {
 					writeln("bgupdate: launching update window for ", captured[0].appName);
 					spawnInNewScope([
-						thisExePath(), "--update", captured[0].sanitizedName
+						installerPath(), "--update", captured[0].sanitizedName
 					]);
 					releaseOnce();
 				});

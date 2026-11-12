@@ -3,6 +3,7 @@
 module app;
 
 import application : App;
+import apputils : repairInstallerLaunchers;
 
 private enum size_t LOG_BUFFER_SIZE = 4096;
 
@@ -16,6 +17,8 @@ version (unittest) {
 	stdout.setvbuf(LOG_BUFFER_SIZE, _IOLBF);
 
 	auto application = new App(args);
-	if (!application.shouldQuit)
-		application.run();
+	if (application.shouldQuit)
+		return;
+	repairInstallerLaunchers();
+	application.run();
 }

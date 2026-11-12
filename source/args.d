@@ -9,18 +9,17 @@ import std.string : startsWith, endsWith;
 import std.path : buildPath, baseName, stripExtension;
 
 import types : AppMode;
-import constants : INSTALLER_VERSION, DESKTOP_PREFIX, DESKTOP_SUFFIX;
+import constants : INSTALLER_VERSION, INSTALLER_VERSION_LINE_PREFIX, DESKTOP_PREFIX, DESKTOP_SUFFIX;
 import constants : APPLICATIONS_SUBDIR, MANIFEST_FILE_NAME;
-import apputils : xdgDataHome, homeDir, installBaseDir, writeInstallerDesktopFile, associateAppImages,
+import apputils : xdgDataHome, systemdUserDir, installBaseDir, installerPath, installerLauncherPath, writeInstallerDesktopFile, associateAppImages,
 	writeSystemdServiceFile, writeSystemdTimerFile, isAppImageAssociated,
 	syncBgupdateDesktopFile;
 import constants : INSTALLER_DESKTOP_FILE, INSTALLER_ICON_NAME;
+import constants : SYSTEMD_SERVICE_FILE, SYSTEMD_TIMER_FILE;
 import appimage : AppImage;
 import appimage.manifest : Manifest;
 
 private enum uint FILE_WRITE_BIT = octal!200;
-private enum string SYSTEMD_SERVICE_FILE = "appimage-installer-update.service";
-private enum string SYSTEMD_TIMER_FILE = "appimage-installer-update.timer";
 
 // Holds everything figured out from the command line
 struct AppArgs {
@@ -93,23 +92,20 @@ private void fillTargetFromArg(ref AppArgs result, string target) {
 
 // Prints install health info useful for debugging without indicating failure
 private void printHealth() {
-	import std.file : thisExePath;
 	import std.path : dirName;
 	import std.process : environment, execute, ProcessException;
 	import std.algorithm : canFind;
 	import std.string : split, strip;
 
-	string binPath = thisExePath();
+	string binPath = installerPath();
 	string binDir = dirName(binPath);
 	bool inPath = environment.get("PATH", "").split(":").canFind(binDir);
 
-	string desktopPath = buildPath(
-		xdgDataHome(), "applications", INSTALLER_DESKTOP_FILE);
+	string desktopPath = installerLauncherPath();
 	string iconPath = buildPath(xdgDataHome(), "icons", "hicolor",
 		"scalable", "apps", INSTALLER_ICON_NAME ~ ".svg");
-	string systemdDir = buildPath(homeDir(), ".config", "systemd", "user");
-	string servicePath = buildPath(systemdDir, SYSTEMD_SERVICE_FILE);
-	string timerPath = buildPath(systemdDir, SYSTEMD_TIMER_FILE);
+	string servicePath = buildPath(systemdUserDir(), SYSTEMD_SERVICE_FILE);
+	string timerPath = buildPath(systemdUserDir(), SYSTEMD_TIMER_FILE);
 
 	bool associated = isAppImageAssociated();
 
@@ -124,7 +120,7 @@ private void printHealth() {
 		timerActive = false;
 	}
 
-	writeln("AppImage Installer v", INSTALLER_VERSION);
+	writeln(INSTALLER_VERSION_LINE_PREFIX, INSTALLER_VERSION);
 	writeln();
 	writeln("binary     ", binPath);
 	writeln("in PATH    ", inPath ? "yes" : "no");
@@ -155,7 +151,7 @@ AppArgs parseArgs(string[] rawArgs) {
 
 		switch (argument) {
 		case "--version", "-v":
-			writeln("AppImage Installer v", INSTALLER_VERSION);
+			writeln(INSTALLER_VERSION_LINE_PREFIX, INSTALLER_VERSION);
 			result.shouldQuit = true;
 			return result;
 
@@ -210,7 +206,7 @@ AppArgs parseArgs(string[] rawArgs) {
 					"Error: --systemd-service requires --check-interval <hours>.");
 				return result;
 			}
-			string servicePath = buildPath(serviceDir, "appimage-installer-update.service");
+			string servicePath = buildPath(serviceDir, SYSTEMD_SERVICE_FILE);
 			string serviceError;
 			if (!writeSystemdServiceFile(
 					servicePath, result.checkIntervalHours, result.autoUpdate, serviceError)) {
@@ -237,7 +233,7 @@ AppArgs parseArgs(string[] rawArgs) {
 					"Error: --systemd-timer requires --timer-interval <hours>.");
 				return result;
 			}
-			string timerPath = buildPath(timerDir, "appimage-installer-update.timer");
+			string timerPath = buildPath(timerDir, SYSTEMD_TIMER_FILE);
 			string timerError;
 			if (!writeSystemdTimerFile(timerPath, result.timerIntervalHours, timerError)) {
 				import std.stdio : stderr;
@@ -263,6 +259,15 @@ AppArgs parseArgs(string[] rawArgs) {
 		case "--background-update":
 			result.mode = AppMode.BackgroundUpdate;
 			break;
+
+			debug {
+		case "--installer-release-url":
+				import update.installer : releaseFilesUrlOverride;
+
+				// A test serves a release of the installer from this address
+				releaseFilesUrlOverride = takeNext();
+				break;
+			}
 
 		case "--check-interval":
 			string intervalStr = takeNext();

@@ -1,14 +1,11 @@
-// Config file I/O, language detection, installer flags, and self-update
+// Config file I/O and language detection
 //
 module apputils.config;
 
-import std.conv : octal, to;
+import std.conv : to;
 import std.path : buildPath;
-import std.stdio : File, writeln;
 
 import apputils.paths : configDir, xdgDataHome;
-import apputils.system : associateAppImages;
-import constants : HTTP_SUCCESS_MIN, HTTP_SUCCESS_MAX;
 
 // Returns the base directory where AppImages are installed
 // Uses the value from config.json if set, otherwise returns the XDG default
@@ -19,55 +16,6 @@ public string installBaseDir() {
 	if (configured.length)
 		return configured;
 	return buildPath(xdgDataHome(), APPIMAGES_DIR_NAME);
-}
-
-// Writes the installer update flag file with the detected available version
-public void writeInstallerUpdateFlag(string newVersion) {
-	import std.json : JSONValue;
-	import std.file : write, FileException, mkdirRecurse;
-	import std.path : dirName;
-	import constants : INSTALLER_FLAG_FILE_NAME;
-
-	string path = buildPath(configDir(), INSTALLER_FLAG_FILE_NAME);
-	try {
-		mkdirRecurse(dirName(path));
-		auto json = JSONValue(["version": JSONValue(newVersion)]);
-		write(path, json.toPrettyString() ~ "\n");
-	} catch (FileException) {
-	}
-}
-
-// Returns the version from the installer update flag file, or empty if not found
-public string readInstallerUpdateVersion() {
-	import std.json : parseJSON, JSONType, JSONException;
-	import std.file : exists, readText, FileException;
-	import constants : INSTALLER_FLAG_FILE_NAME;
-
-	string path = buildPath(configDir(), INSTALLER_FLAG_FILE_NAME);
-	if (!exists(path))
-		return "";
-	try {
-		auto json = parseJSON(readText(path));
-		if (auto v = "version" in json)
-			if (v.type == JSONType.string)
-				return v.str;
-	} catch (JSONException) {
-	} catch (FileException) {
-	}
-	return "";
-}
-
-// Deletes the installer update flag file
-public void clearInstallerUpdateFlag() {
-	import std.file : exists, remove, FileException;
-	import constants : INSTALLER_FLAG_FILE_NAME;
-
-	string path = buildPath(configDir(), INSTALLER_FLAG_FILE_NAME);
-	try {
-		if (exists(path))
-			remove(path);
-	} catch (FileException) {
-	}
 }
 
 // Reads the language code stored in config.json, or returns empty if not set
@@ -150,151 +98,6 @@ public string detectSystemLang() {
 				return code;
 	}
 	return "";
-}
-
-// Downloads and installs a specific version of the installer, replacing the running binary
-// Calls onStatus with a human-readable status string during each phase
-public bool downloadAndInstallSelf(
-	string newVersion,
-	void delegate(string) onStatus,
-	out string error) {
-	import std.digest.sha : SHA256;
-	import std.digest : toHexString, LetterCase;
-	import std.exception : collectException;
-	import std.file : thisExePath, copy, rename, setAttributes, FileException,
-		mkdirRecurse, rmdirRecurse;
-	import std.net.curl : HTTP, CurlException;
-	import std.process : execute, ProcessException;
-	import std.string : strip, indexOf;
-	import lang : L;
-	import constants : INSTALLER_ARCH, INSTALLER_GH_USER, INSTALLER_GH_REPO;
-	import constants : INSTALLER_UPDATE_TEMP_DIRECTORY_PREFIX;
-	import constants : TEMP_DIRECTORY_PATH;
-	import update.common : MAX_HTTP_REDIRECTS;
-
-	string tarName = "AppImage_Installer-" ~ newVersion ~ "-" ~ INSTALLER_ARCH ~ ".tar.gz";
-	string releaseBase = "https://github.com/" ~ INSTALLER_GH_USER ~ "/"
-		~ INSTALLER_GH_REPO ~ "/releases/download/" ~ newVersion ~ "/";
-	string url = releaseBase ~ tarName;
-	string checksumUrl = releaseBase ~ tarName ~ ".sha256";
-	string updateDownloadTempDirectory =
-		buildPath(TEMP_DIRECTORY_PATH,
-			INSTALLER_UPDATE_TEMP_DIRECTORY_PREFIX ~ newVersion);
-	string tarPath = buildPath(updateDownloadTempDirectory, tarName);
-
-	try {
-		mkdirRecurse(updateDownloadTempDirectory);
-	} catch (FileException fileException) {
-		error = "Cannot create temp dir: " ~ fileException.msg;
-		return false;
-	}
-
-	scope (exit)
-		collectException(rmdirRecurse(updateDownloadTempDirectory));
-
-	onStatus(L("manage.installer.update.downloading"));
-	try {
-		File tarFile = File(tarPath, "wb");
-		auto http = HTTP(url);
-		http.maxRedirects(MAX_HTTP_REDIRECTS);
-		http.onReceive = (ubyte[] chunk) {
-			tarFile.rawWrite(chunk);
-			return chunk.length;
-		};
-		http.perform();
-		tarFile.close();
-		immutable uint statusCode = http.statusLine.code;
-		if (statusCode < HTTP_SUCCESS_MIN || statusCode >= HTTP_SUCCESS_MAX) {
-			error = "HTTP " ~ statusCode.to!string;
-			return false;
-		}
-	} catch (CurlException curlException) {
-		error = curlException.msg;
-		return false;
-	}
-
-	onStatus(L("manage.installer.update.verifying"));
-	try {
-		string checksumBody;
-		int checksumStatus;
-		auto checksumHttp = HTTP(checksumUrl);
-		checksumHttp.maxRedirects(MAX_HTTP_REDIRECTS);
-		checksumHttp.onReceive = (ubyte[] data) {
-			checksumBody ~= cast(string) data;
-			return data.length;
-		};
-		checksumHttp.onReceiveStatusLine = (HTTP.StatusLine sl) {
-			checksumStatus = sl.code;
-		};
-		checksumHttp.perform();
-		if (checksumStatus >= HTTP_SUCCESS_MIN && checksumStatus < HTTP_SUCCESS_MAX) {
-			string line = checksumBody.strip();
-			auto spacePos = line.indexOf(' ');
-			string expectedHex = spacePos > 0 ? line[0 .. spacePos] : line;
-			SHA256 sha;
-			sha.start();
-			auto tarFile = File(tarPath, "rb");
-			scope (exit)
-				tarFile.close();
-			ubyte[65_536] buf;
-			while (!tarFile.eof) {
-				auto chunk = tarFile.rawRead(buf[]);
-				if (chunk.length == 0)
-					break;
-				sha.put(chunk);
-			}
-			string actualHex = toHexString!(LetterCase.lower)(sha.finish()).idup;
-			if (actualHex != expectedHex) {
-				error = "Checksum mismatch: download may be corrupt or tampered";
-				return false;
-			}
-			writeln("apputils: checksum verified for ", tarName);
-		} else {
-			writeln("apputils: no checksum available for ", tarName,
-				", skipping verification");
-		}
-	} catch (CurlException curlException) {
-		writeln("apputils: could not fetch checksum: ", curlException.msg);
-	} catch (FileException fileException) {
-		writeln("apputils: could not verify checksum: ", fileException.msg);
-	}
-
-	onStatus(L("manage.installer.update.extracting"));
-	try {
-		// Only extract the single binary we need so no other archive contents touch disk
-		auto result = execute([
-			"tar", "xzf", tarPath,
-			"-C", updateDownloadTempDirectory,
-			"--", "appimage-installer",
-		]);
-		if (result.status != 0) {
-			error = result.output.length ? result.output : "tar failed";
-			return false;
-		}
-	} catch (ProcessException processException) {
-		error = processException.msg;
-		return false;
-	}
-
-	onStatus(L("manage.installer.update.installing"));
-	try {
-		// Rename over running binary to avoid ETXTBSY from in-place overwrite
-		string selfPath = thisExePath();
-		string tmpSelf = selfPath ~ ".new";
-		copy(
-			buildPath(updateDownloadTempDirectory, "appimage-installer"),
-			tmpSelf);
-		setAttributes(tmpSelf, octal!755);
-		rename(tmpSelf, selfPath);
-	} catch (FileException fileException) {
-		error = fileException.msg;
-		return false;
-	}
-
-	string assocError;
-	if (!associateAppImages(assocError) && assocError.length)
-		writeln("apputils: could not refresh file association: ", assocError);
-	return true;
 }
 
 // Reads the GitHub personal access token from config.json, or returns ""

@@ -2,18 +2,13 @@
 //
 module update.checker;
 
-import std.json : JSONValue;
-import std.stdio : writeln;
-
 import update.common : parseUpdateMethodKind, UpdateMethodKind, reapplyIfFileChanged;
-import update.githubcommon : fetchGitHubRelease;
 import update.githubrelease : checkGitHubReleaseForUpdate;
 import update.githubzsync : checkGitHubZsyncForUpdate;
 import update.githublinuxmanifest : checkGitHubLinuxManifestForUpdate;
 import update.pling : checkPlingForUpdate;
 import update.zsync : extractZsyncUrl, checkZsyncForUpdate;
 import windows.manage.scan : InstalledApp;
-import constants : INSTALLER_GH_USER, INSTALLER_GH_REPO, INSTALLER_VERSION, TAG_LATEST;
 
 // Checks one app for a newer version with its update method
 // DirectLink cannot be checked ahead and an unknown method not at all, so both leave available and error unset
@@ -59,30 +54,4 @@ public bool checkOneApp(InstalledApp entry, out string error) {
 	bool available;
 	checkForUpdate(entry.appDirectory, entry.sanitizedName, entry.updateInfo, available, error);
 	return available;
-}
-
-// Checks whether the installed version of this installer is behind the latest GitHub release
-// Sets latestVersion to the version string from the release when an update is available
-public bool checkInstallerUpdate(out string latestVersion, out string error) {
-	JSONValue releaseJson;
-	if (!fetchGitHubRelease(
-			INSTALLER_GH_USER,
-			INSTALLER_GH_REPO,
-			TAG_LATEST,
-			releaseJson,
-			error))
-		return false;
-	auto tagPtr = "tag_name" in releaseJson;
-	if (tagPtr is null) {
-		error = "No tag_name in release response";
-		return false;
-	}
-	string latest = tagPtr.str;
-	if (latest.length > 1 && latest[0] == 'v')
-		latest = latest[1 .. $];
-	writeln("checker: installer current=", INSTALLER_VERSION, " latest=", latest);
-	if (latest == INSTALLER_VERSION)
-		return false;
-	latestVersion = latest;
-	return true;
 }

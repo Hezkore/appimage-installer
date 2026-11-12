@@ -4,14 +4,27 @@ module apputils.system;
 
 import std.path : buildPath;
 
-import apputils.paths : systemdUserDir, xdgDataHome;
+import apputils.paths : installerPath, systemdUserDir, withoutReplacedInstallerMark,
+	writeFileAtomically, xdgDataHome;
+
+// Launcher entry that shows the installer in the application menu and opens AppImage files
+public string installerLauncherPath() {
+	import constants : INSTALLER_DESKTOP_FILE;
+
+	return buildPath(xdgDataHome(), "applications", INSTALLER_DESKTOP_FILE);
+}
+
+// What the installer launcher runs, with %f for the file that was opened
+private string installerLauncherCommand() {
+	return installerPath() ~ " %f";
+}
 
 // True when the default AppImage MIME handler is this installer's desktop file
 // and that desktop file's Exec= points to the currently running binary
 public bool isAppImageAssociated() {
-	import std.file : thisExePath, exists;
+	import std.file : exists;
 	import std.process : execute, ProcessException;
-	import std.string : strip, startsWith;
+	import std.string : strip;
 	import constants : INSTALLER_DESKTOP_FILE;
 
 	try {
@@ -25,14 +38,11 @@ public bool isAppImageAssociated() {
 		return false;
 	}
 
-	string desktopPath = buildPath(
-		xdgDataHome(), "applications", INSTALLER_DESKTOP_FILE);
-	if (!exists(desktopPath))
+	if (!exists(installerLauncherPath()))
 		return false;
 	// Empty locale falls back to the base Exec= value
-	string execValue = readDesktopFieldLocalized(desktopPath, "Exec", "");
-	string currentExe = thisExePath();
-	return execValue.startsWith(currentExe);
+	return readDesktopFieldLocalized(installerLauncherPath(), "Exec", "")
+		== installerLauncherCommand();
 }
 
 // Writes the embedded installer icon into the user hicolor theme so launchers can find it
@@ -71,7 +81,7 @@ private string localizedDesktopField(string key, string translationKey) {
 // Writes the installer .desktop file to destPath and its icon, always overwriting
 // The hidden background updater entry is only kept while the update timer is installed
 public bool writeInstallerDesktopFile(string destPath, out string error) {
-	import std.file : write, FileException, mkdirRecurse, thisExePath;
+	import std.file : FileException, mkdirRecurse;
 	import std.path : dirName;
 	import constants : INSTALLER_ICON_NAME;
 
@@ -80,13 +90,13 @@ public bool writeInstallerDesktopFile(string destPath, out string error) {
 
 	try {
 		mkdirRecurse(dirName(destPath));
-		write(destPath,
+		writeFileAtomically(destPath,
 			"[Desktop Entry]\n"
 				~ "Type=Application\n"
 				~ localizedDesktopField("Name", "app.name")
 				~ localizedDesktopField("Comment", "app.description")
 				~ "Icon=" ~ INSTALLER_ICON_NAME ~ "\n"
-				~ "Exec=" ~ thisExePath() ~ " %f\n"
+				~ "Exec=" ~ installerLauncherCommand() ~ "\n"
 				~ "MimeType=application/vnd.appimage;"
 				~ "application/x-iso9660-appimage;\n"
 				~ "NoDisplay=false\n");
@@ -119,17 +129,17 @@ public void syncBgupdateDesktopFile(string desktopDir) {
 // Writes the hidden background updater desktop entry into desktopDir
 // This entry is only needed while the systemd update timer is installed
 private bool writeBgupdateDesktopFile(string desktopDir, out string error) {
-	import std.file : write, FileException, mkdirRecurse, thisExePath;
+	import std.file : FileException, mkdirRecurse;
 	import constants : INSTALLER_ICON_NAME, BGUPDATE_DESKTOP_FILE;
 
 	try {
 		mkdirRecurse(desktopDir);
-		write(buildPath(desktopDir, BGUPDATE_DESKTOP_FILE),
+		writeFileAtomically(buildPath(desktopDir, BGUPDATE_DESKTOP_FILE),
 			"[Desktop Entry]\n"
 				~ "Type=Application\n"
 				~ localizedDesktopField("Name", "app.name")
 				~ "Icon=" ~ INSTALLER_ICON_NAME ~ "\n"
-				~ "Exec=" ~ thisExePath() ~ " --background-update\n"
+				~ "Exec=" ~ installerPath() ~ " --background-update\n"
 				~ "NoDisplay=true\n");
 	} catch (FileException fileException) {
 		error = fileException.msg;
@@ -219,19 +229,19 @@ public string readDesktopFieldLocalized(string path, string key, string locale) 
 public bool writeSystemdServiceFile(
 	string destPath, int checkIntervalHours, bool autoUpdate,
 	out string error) {
-	import std.file : write, FileException, mkdirRecurse, thisExePath;
+	import std.file : FileException, mkdirRecurse;
 	import std.path : dirName;
 	import std.conv : to;
 
 	try {
 		mkdirRecurse(dirName(destPath));
-		write(destPath,
+		writeFileAtomically(destPath,
 			"[Unit]\n"
 				~ "Description=AppImage Installer background update check\n"
 				~ "\n"
 				~ "[Service]\n"
 				~ "Type=simple\n"
-				~ "ExecStart=" ~ thisExePath()
+				~ "ExecStart=" ~ installerPath()
 				~ " --background-update --check-interval "
 				~ to!string(
 					checkIntervalHours)
@@ -247,13 +257,13 @@ public bool writeSystemdServiceFile(
 // Writes a systemd user timer unit that triggers the update service
 public bool writeSystemdTimerFile(
 	string destPath, int timerIntervalHours, out string error) {
-	import std.file : write, FileException, mkdirRecurse;
+	import std.file : FileException, mkdirRecurse;
 	import std.path : dirName;
 	import std.conv : to;
 
 	try {
 		mkdirRecurse(dirName(destPath));
-		write(destPath,
+		writeFileAtomically(destPath,
 			"[Unit]\n"
 				~ "Description=Run AppImage Installer background update check\n"
 				~ "\n"
@@ -276,8 +286,7 @@ public bool writeSystemdTimerFile(
 public bool associateAppImages(out string error) {
 	import constants : INSTALLER_DESKTOP_FILE;
 
-	string desktopPath = buildPath(xdgDataHome(), "applications", INSTALLER_DESKTOP_FILE);
-	if (!writeInstallerDesktopFile(desktopPath, error))
+	if (!writeInstallerDesktopFile(installerLauncherPath(), error))
 		return false;
 	return registerAppImages(INSTALLER_DESKTOP_FILE, error);
 }
@@ -285,7 +294,40 @@ public bool associateAppImages(out string error) {
 // True if the background update timer unit file is present in the systemd user dir
 public bool isSystemdTimerInstalled() {
 	import std.file : exists;
+	import constants : SYSTEMD_TIMER_FILE;
 
-	return exists(
-		buildPath(systemdUserDir(), "appimage-installer-update.timer"));
+	return exists(buildPath(systemdUserDir(), SYSTEMD_TIMER_FILE));
+}
+
+// Repairs a launcher or service file whose installer path carries the replaced file mark
+// Such a line can be written while the installer's own file is replaced, and KDE refuses to start it
+public void repairInstallerPathIn(string launcherPath) {
+	import std.file : exists, readText, FileException;
+	import std.stdio : writeln;
+	import std.utf : UTFException;
+
+	try {
+		if (!exists(launcherPath))
+			return;
+		string content = readText(launcherPath);
+		string repaired = withoutReplacedInstallerMark(content);
+		if (repaired == content)
+			return;
+		writeFileAtomically(launcherPath, repaired);
+		writeln("apputils: repaired the installer path in ", launcherPath);
+	} catch (FileException fileException) {
+		writeln("apputils: could not repair ", launcherPath, ": ", fileException.msg);
+	} catch (UTFException) {
+		// Not a text file we wrote, so nothing in it is ours to repair
+	}
+}
+
+// Repairs every file that starts the installer itself, at each start
+public void repairInstallerLaunchers() {
+	import std.path : dirName;
+	import constants : BGUPDATE_DESKTOP_FILE, SYSTEMD_SERVICE_FILE;
+
+	repairInstallerPathIn(installerLauncherPath());
+	repairInstallerPathIn(buildPath(dirName(installerLauncherPath()), BGUPDATE_DESKTOP_FILE));
+	repairInstallerPathIn(buildPath(systemdUserDir(), SYSTEMD_SERVICE_FILE));
 }

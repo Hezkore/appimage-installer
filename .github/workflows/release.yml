@@ -118,7 +118,15 @@ jobs:
         run: strip -s appimage-installer
 
       - name: Health check
-        run: ./appimage-installer --health
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./appimage-installer --health
+          # An update runs the new build with --version and expects this exact line
+          PREFIX=$(grep -oP '(?<=INSTALLER_VERSION_LINE_PREFIX = ")[^"]+' source/constants.d)
+          VERSION_LINE="$(./appimage-installer --version)"
+          [[ "$VERSION_LINE" == "${PREFIX}${{ needs.prepare.outputs.version }}" ]] \
+            || { echo "Unexpected version line: $VERSION_LINE"; exit 1; }
 
       - name: Package
         shell: bash

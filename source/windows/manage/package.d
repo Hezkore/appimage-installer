@@ -55,10 +55,9 @@ import windows.manage.watcher : watcherHideOrphanSection = hideOrphanSectionIfEm
 import windows.manage.add : buildAddAppBox;
 import windows.settings : buildSettingsBox;
 import appimage.manifest : Manifest;
-import update.checker : checkOneApp, checkInstallerUpdate;
+import update.checker : checkOneApp;
+import update.installer : checkInstallerUpdate, readInstallerUpdateVersion, updateInstaller;
 import update.dispatch : applyUpdateWithProgress;
-import apputils : readInstallerUpdateVersion, writeInstallerUpdateFlag,
-	clearInstallerUpdateFlag, downloadAndInstallSelf;
 import lang : L;
 
 // Measurements specific to the manage window section headers and list layout
@@ -564,7 +563,7 @@ class ManageWindow : AppWindow {
 					});
 				}
 
-				bool ok = downloadAndInstallSelf(newVersion, &setStatus, dlError);
+				bool ok = updateInstaller(newVersion, &setStatus, dlError);
 				string finalText = ok
 				? L("manage.installer.update.done") : L("manage.installer.update.failed", dlError);
 				bool capturedOk = ok;
@@ -572,10 +571,11 @@ class ManageWindow : AppWindow {
 				idleAdd(PRIORITY_DEFAULT, () {
 					*progressRunning = false;
 					capturedSubLabel.setText(finalText);
-					if (capturedOk)
-						clearInstallerUpdateFlag();
-					*capturedDone = true;
-					capturedButton.setLabel(L("button.close"));
+					// A failed update keeps the Update button, so the next press tries again
+					*capturedDone = capturedOk;
+					capturedButton.setLabel(L(capturedOk ? "button.close" : "button.update"));
+					if (!capturedOk)
+						capturedButton.addCssClass("suggested-action");
 					capturedButton.setSensitive(true);
 					return false;
 				});
@@ -808,8 +808,6 @@ class ManageWindow : AppWindow {
 				string installerError;
 				bool installerAvail =
 				checkInstallerUpdate(installerLatestVer, installerError);
-				if (installerAvail)
-					writeInstallerUpdateFlag(installerLatestVer);
 				string capturedLatestVer = installerLatestVer;
 				bool capturedInstallerAvail = installerAvail;
 				idleAdd(PRIORITY_DEFAULT, () {
@@ -989,7 +987,7 @@ class ManageWindow : AppWindow {
 		this.navStack.addNamed(this.subSlot, "sub");
 		this.navStack.addNamed(this.emptyStateBox, "empty");
 		this.navStack.setVisibleChildName("manage");
-		if (this.installedApps.length == 0) {
+		if (this.showsEmptyPage()) {
 			this.navStack.setVisibleChildName("empty");
 			this.searchButton.hide();
 			this.checkButton.hide();
@@ -1088,6 +1086,12 @@ class ManageWindow : AppWindow {
 		this.navStack.setVisibleChildName("sub");
 	}
 
+	// The empty page has no installer update card, so the list page shows while an update waits
+	package bool showsEmptyPage() {
+		return !hasAnyActiveApps(this) && !this.orphanSectionBox.getVisible()
+			&& !this.installerUpdateVersion.length;
+	}
+
 	// Reveals the installer update card so it is ready when the user navigates back
 	public void setInstallerUpdateAvailable(string newVersion) {
 		this.installerUpdateVersion = newVersion;
@@ -1114,7 +1118,7 @@ class ManageWindow : AppWindow {
 			if (!app.isOrphan && !isStillInstalled(app))
 				app.isOrphan = true;
 
-		bool isEmpty = !hasAnyActiveApps(this) && !this.orphanSectionBox.getVisible();
+		bool isEmpty = this.showsEmptyPage();
 
 		if (!isEmpty)
 			startWatcher(this);

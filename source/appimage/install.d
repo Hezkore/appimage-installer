@@ -14,7 +14,7 @@ import appimage : AppImage, pathIsSymlink;
 import appimage.icon : installIconFromDir, installIconFromCachedData;
 import appimage.manifest : Manifest, fileStamp;
 import types : InstallMethod;
-import apputils : xdgDataHome, installBaseDir;
+import apputils : xdgDataHome, installBaseDir, installerPath;
 import constants : APPLICATIONS_SUBDIR;
 import constants : MANIFEST_FILE_NAME, DESKTOP_SUFFIX, APPIMAGE_EXEC_MODE;
 import lang : translateIn, availableLangs;
@@ -560,7 +560,7 @@ public void writeDesktopFile(
 		outputLines ~= action.header;
 		outputLines ~= desktopActionNameLines(action.nameKey);
 		// Points at the desktop file inside the app directory so the manager can find the app
-		outputLines ~= "Exec=" ~ thisExePath() ~ " " ~ action.flag ~ " " ~ desktopFilePath;
+		outputLines ~= "Exec=" ~ installerPath() ~ " " ~ action.flag ~ " " ~ desktopFilePath;
 	}
 
 	try {
