@@ -144,17 +144,23 @@ private void markUpdateAvailable(InstalledApp entry) {
 	installedAppManifest.save();
 }
 
-// Spawns command in a transient systemd scope so the bgupdate cgroup cleanup does
-// not kill the child, falls back to plain spawn if systemd-run is unavailable
-private void spawnInNewScope(string[] command) {
-	import std.process : ProcessException;
+// Starts command as its own transient systemd service, so it lives on after this
+// background service ends. systemd-run returns once the start job is queued, and
+// waiting for it means the child never depends on this process staying alive.
+// A scope would not work, since systemd-run joins the scope only after a D-Bus call
+// and is killed with this service when the service ends first.
+// Falls back to a plain detached spawn when systemd-run is missing, such as under cron.
+private void spawnAsOwnService(string[] command) {
+	import std.process : ProcessException, wait;
 
 	try {
-		spawnProcess(["systemd-run", "--user", "--scope"] ~ command,
-			(string[string]).init, Config.detached);
+		auto pid = spawnProcess(["systemd-run", "--user", "--quiet", "--collect", "--no-block"] ~ command);
+		if (wait(pid) == 0)
+			return;
+		writeln("bgupdate: systemd-run failed, starting directly");
 	} catch (ProcessException) {
-		spawnProcess(command, (string[string]).init, Config.detached);
 	}
+	spawnProcess(command, (string[string]).init, Config.detached);
 }
 
 // Returns the path to the installed icon file for iconName, or empty string if not found
@@ -382,7 +388,7 @@ public void runBackgroundUpdate(
 			auto manageAction = new SimpleAction("bgupdate-manage", null);
 			manageAction.connectActivate((Variant param, SimpleAction a) {
 				writeln("bgupdate: launching manager");
-				spawnInNewScope([installerPath()]);
+				spawnAsOwnService([installerPath()]);
 				writeln("bgupdate: manager launched");
 				releaseOnce();
 			});
@@ -400,7 +406,7 @@ public void runBackgroundUpdate(
 				auto updateAction = new SimpleAction("bgupdate-update-now", null);
 				updateAction.connectActivate((Variant param, SimpleAction a) {
 					writeln("bgupdate: launching update window for ", captured[0].appName);
-					spawnInNewScope([
+					spawnAsOwnService([
 						installerPath(), "--update", captured[0].sanitizedName
 					]);
 					releaseOnce();
