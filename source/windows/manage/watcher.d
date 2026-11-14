@@ -159,7 +159,9 @@ package void startWatcher(ManageWindow win) {
 			if (installedApp.isOrphan)
 				continue;
 			if (installedApp.appDirectory == changedPath) {
-				handleAppGone(win, i);
+				// A new install takes the folder's place in the same step, so the event alone proves nothing
+				if (!isStillInstalled(installedApp))
+					handleAppGone(win, i);
 				break;
 			}
 		}

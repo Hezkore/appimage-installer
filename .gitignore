@@ -14,7 +14,6 @@ appimage-installer-test-*
 *.o
 *.obj
 *.lst
-/dev/
 local_*.conf
 local_*.ini
 local_*.cfg

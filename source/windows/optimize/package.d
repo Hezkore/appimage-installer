@@ -36,7 +36,7 @@ import apputils : installBaseDir, readableFileSize;
 import appimage.manifest : Manifest;
 import appimage.install : clearAppDirExceptMeta, rewriteDesktopForModeSwitch, stagingFolderPath;
 import types : InstallMethod;
-import windows.base : applyCssToWidget, makeSlideDownRevealer, REVEAL_MS;
+import windows.base : applyCssToWidget, makeSlideDownRevealer, logWhenShown, REVEAL_MS;
 import windows.base : ACTION_BTN_WIDTH, ACTION_BTN_HEIGHT;
 import windows.optimize.helpers;
 import constants : APPLICATIONS_SUBDIR, DESKTOP_SUFFIX, APPIMAGE_EXEC_MODE;
@@ -181,6 +181,7 @@ Box buildOptimizeBox(
 	optimizeButtonRevealer.setHalign(Align.Center);
 	optimizeButtonRevealer.setChild(optimizeButton);
 	choicePage.append(optimizeButtonRevealer);
+	logWhenShown(optimizeButtonRevealer, "optimize button");
 
 	// Equal bottom spacer that pairs with choiceTopSpacer to keep the heading centered
 	auto choiceBottomSpacer = new Box(Orientation.Vertical, 0);
@@ -296,6 +297,7 @@ Box buildOptimizeBox(
 	keepGoButtonRevealer.setHalign(Align.Center);
 	keepGoButtonRevealer.setChild(keepGoButton);
 	keepPage.append(keepGoButtonRevealer);
+	logWhenShown(keepGoButtonRevealer, "optimize keep button");
 
 	auto keepYesClick = new GestureClick;
 	keepYesRow.addController(keepYesClick);

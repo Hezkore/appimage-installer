@@ -38,7 +38,7 @@ import std.typecons : Yes, No;
 
 import windows.install.helpers;
 import windows.base : AppWindow, ACTION_BTN_WIDTH, ACTION_BTN_HEIGHT, REVEAL_MS, makeLangButton, makeIcon;
-import windows.base : CONTENT_REVEAL_DELAY_MS, ACTION_REVEAL_DELAY_MS;
+import windows.base : CONTENT_REVEAL_DELAY_MS, ACTION_REVEAL_DELAY_MS, logWhenShown;
 import application : App;
 import appimage : AppImage;
 import appimage.signature : SignatureStatus;
@@ -263,6 +263,7 @@ class InstallWindow : AppWindow {
 			this.installProgressBar, "installing", "Installing");
 
 		this.actionRevealer = new Revealer;
+		logWhenShown(this.actionRevealer, "install button");
 		this.actionRevealer.setTransitionType(RevealerTransitionType.SlideDown);
 		this.actionRevealer.setTransitionDuration(ACTION_TRANSITION_MS);
 		this.actionRevealer.setRevealChild(false);
@@ -457,6 +458,7 @@ class InstallWindow : AppWindow {
 		// Enable the button after a further delay (user must read the warning)
 		timeoutAdd(PRIORITY_DEFAULT, BUTTON_ENABLE_DELAY_MS, {
 			this.actionButton.setSensitive(true);
+			writeln("ui: install continue enabled");
 			return false;
 		});
 	}

@@ -8,7 +8,8 @@ import std.file;
 import std.path : buildPath, baseName, dirName;
 import std.process : execute, spawnProcess, Config, ProcessException, Pid, environment;
 import std.stdio : writeln;
-import std.string : endsWith, startsWith, strip, stripLeft, split, indexOf, splitLines;
+import std.string : endsWith, startsWith, strip, stripLeft, split, indexOf, splitLines, toStringz;
+import core.sys.posix.fcntl : AT_FDCWD;
 
 import appimage : AppImage, pathIsSymlink;
 import appimage.icon : installIconFromDir, installIconFromCachedData;
@@ -20,12 +21,15 @@ import constants : MANIFEST_FILE_NAME, DESKTOP_SUFFIX, APPIMAGE_EXEC_MODE;
 import lang : translateIn, availableLangs;
 import update.common : normalizeUpdateInfoPattern;
 
+// Swaps two paths in one step, from glibc 2.28
+private extern (C) int renameat2(int oldDirFd, const(char)* oldPath, int newDirFd, const(char)* newPath, uint flags) nothrow @nogc;
+private enum uint RENAME_EXCHANGE = 2;
+
 // Progress bar values used during installation
 private enum Progress {
 	afterInit = 0.1,
 	afterCopy = 0.4,
 	afterExtract = 0.5,
-	afterMove = 0.6,
 	afterIcon = 0.7,
 	afterDesktop = 0.9,
 	complete = 1.0
@@ -571,6 +575,23 @@ public void writeDesktopFile(
 	}
 }
 
+// Links the launcher inside the app folder into the applications folder, so menus list the app
+private bool linkDesktopFile(string desktopFile, string desktopSymlinkPath) {
+	string desktopSymlinkDir = dirName(desktopSymlinkPath);
+	try {
+		mkdirRecurse(desktopSymlinkDir);
+		if (exists(desktopSymlinkPath) || pathIsSymlink(desktopSymlinkPath))
+			std.file.remove(desktopSymlinkPath);
+		symlink(desktopFile, desktopSymlinkPath);
+		writeln("Desktop symlink created: ", desktopSymlinkPath, " -> ", desktopFile);
+	} catch (FileException error) {
+		writeln("Failed to create desktop symlink: ", error.msg);
+		return false;
+	}
+	startDesktopDatabaseUpdate(desktopSymlinkDir);
+	return true;
+}
+
 // Copies the AppImage into the app directory and wires up desktop and icon integration
 // The .AppImage file is the sole launch entry point No extraction needed and zsync updates still work
 private bool doInstallAppImage(AppImage appImage) {
@@ -618,6 +639,34 @@ private bool doInstallAppImage(AppImage appImage) {
 		writeln("Failed to move AppImage: ", error.msg);
 		return false;
 	}
+	atomicStore(appImage.installProgress, cast(double) Progress.afterCopy);
+
+	installIconFromCachedData(appImage);
+
+	atomicStore(appImage.installProgress, cast(double) Progress.afterIcon);
+
+	// The launcher and manifest are written in the new folder before the swap, so the app folder is never seen without them
+	string stagedMetadataDir = buildPath(stagingDir, APPLICATIONS_SUBDIR);
+	try {
+		mkdirRecurse(stagedMetadataDir);
+	} catch (FileException error) {
+		writeln("Failed to create metadata directory: ", error.msg);
+		return false;
+	}
+
+	// Exec= points directly at the AppImage so appExtractDir is unused in this mode
+	writeDesktopFile(appImage, buildPath(stagedMetadataDir, baseName(desktopFileInsideAppDir)),
+		"", appImageDest);
+
+	atomicStore(appImage.installProgress, cast(double) Progress.afterDesktop);
+
+	appImage.installedAppDirectory = appDir;
+	appImage.installedDesktopSymlinkPath = desktopSymlinkPath;
+	// A move keeps the size and time the manifest stamps, so the staged file gives the stamp of the installed one
+	appImage.appImageDestPath = stagedAppImage;
+	writeManifest(appImage, buildPath(stagedMetadataDir, MANIFEST_FILE_NAME));
+	appImage.appImageDestPath = appImageDest;
+
 	if (!replaceAppFolder(stagingDir, appDir)) {
 		// The file goes back where the user had it, before the staging folder is cleaned up
 		try {
@@ -628,44 +677,9 @@ private bool doInstallAppImage(AppImage appImage) {
 		return false;
 	}
 	writeln("AppImage moved to: ", appImageDest);
-	appImage.appImageDestPath = appImageDest;
 
-	atomicStore(appImage.installProgress, cast(double) Progress.afterCopy);
-
-	installIconFromCachedData(appImage);
-
-	atomicStore(appImage.installProgress, cast(double) Progress.afterIcon);
-
-	try {
-		mkdirRecurse(metadataDir);
-	} catch (FileException error) {
-		writeln("Failed to create metadata directory: ", error.msg);
+	if (!linkDesktopFile(desktopFileInsideAppDir, desktopSymlinkPath))
 		return false;
-	}
-
-	// Exec= points directly at the AppImage so appExtractDir is unused in this mode
-	writeDesktopFile(appImage, desktopFileInsideAppDir, "", appImageDest);
-
-	atomicStore(appImage.installProgress, cast(double) Progress.afterDesktop);
-
-	try {
-		mkdirRecurse(desktopSymlinkDir);
-		if (exists(desktopSymlinkPath))
-			std.file.remove(desktopSymlinkPath);
-		symlink(desktopFileInsideAppDir, desktopSymlinkPath);
-		writeln("Desktop symlink created: ", desktopSymlinkPath,
-			" -> ", desktopFileInsideAppDir);
-	} catch (FileException error) {
-		writeln("Failed to create desktop symlink: ", error.msg);
-		return false;
-	}
-
-	appImage.installedAppDirectory = appDir;
-	appImage.installedDesktopSymlinkPath = desktopSymlinkPath;
-
-	startDesktopDatabaseUpdate(desktopSymlinkDir);
-
-	writeManifest(appImage, buildPath(metadataDir, MANIFEST_FILE_NAME));
 	atomicStore(appImage.installProgress, cast(double) Progress.complete);
 
 	writeln("Installation complete");
@@ -747,54 +761,41 @@ private bool doInstallExtracted(AppImage appImage) {
 
 	atomicStore(appImage.installProgress, cast(double) Progress.afterExtract);
 
-	// An install that is there already is replaced only now, when the new files are ready
-	if (!replaceAppFolder(realExtractRoot, appExtractDir))
-		return false;
-	writeln("Installed to: ", appExtractDir);
-
 	// Some AppImages ship a non-executable AppRun inside the squashfs
-	string appRunPath = buildPath(appExtractDir, "AppRun");
-	if (exists(appRunPath))
-		setAttributes(appRunPath, APPIMAGE_EXEC_MODE);
+	string stagedAppRun = buildPath(realExtractRoot, "AppRun");
+	if (exists(stagedAppRun))
+		setAttributes(stagedAppRun, APPIMAGE_EXEC_MODE);
 
-	atomicStore(appImage.installProgress, cast(double) Progress.afterMove);
-
-	installIconFromDir(appImage, appExtractDir);
+	installIconFromDir(appImage, realExtractRoot);
 
 	atomicStore(appImage.installProgress, cast(double) Progress.afterIcon);
 
+	// The launcher and manifest are written in the new folder before the swap, so the app folder is never seen without them
+	string stagedMetadataDir = buildPath(realExtractRoot, APPLICATIONS_SUBDIR);
 	try {
-		mkdirRecurse(metadataDir);
+		mkdirRecurse(stagedMetadataDir);
 	} catch (FileException error) {
 		writeln("Failed to create metadata directory: ", error.msg);
 		return false;
 	}
 
 	// Stored inside the app dir so deleting it automatically removes the symlink in applications/
-	writeDesktopFile(appImage, desktopFileInsideAppDir, appExtractDir, buildPath(
-			appExtractDir, "AppRun"));
+	writeDesktopFile(appImage, buildPath(stagedMetadataDir, baseName(desktopFileInsideAppDir)),
+		appExtractDir, buildPath(appExtractDir, "AppRun"));
 
 	atomicStore(appImage.installProgress, cast(double) Progress.afterDesktop);
 
-	// Symlink .desktop into ~/.local/share/applications/
-	try {
-		mkdirRecurse(desktopSymlinkDir);
-		if (exists(desktopSymlinkPath))
-			std.file.remove(desktopSymlinkPath);
-		symlink(desktopFileInsideAppDir, desktopSymlinkPath);
-		writeln("Desktop symlink created: ", desktopSymlinkPath,
-			" -> ", desktopFileInsideAppDir);
-	} catch (FileException error) {
-		writeln("Failed to create desktop symlink: ", error.msg);
-		return false;
-	}
-
 	appImage.installedAppDirectory = appExtractDir;
 	appImage.installedDesktopSymlinkPath = desktopSymlinkPath;
+	writeManifest(appImage, buildPath(stagedMetadataDir, MANIFEST_FILE_NAME));
 
-	startDesktopDatabaseUpdate(desktopSymlinkDir);
+	// An install that is there already is replaced only now, when the new files are ready
+	if (!replaceAppFolder(realExtractRoot, appExtractDir))
+		return false;
+	writeln("Installed to: ", appExtractDir);
 
-	writeManifest(appImage, buildPath(metadataDir, MANIFEST_FILE_NAME));
+	if (!linkDesktopFile(desktopFileInsideAppDir, desktopSymlinkPath))
+		return false;
 
 	// Move the original AppImage into the metadata dir so we always know where it lives
 	string appImageInMeta = buildPath(
@@ -881,8 +882,13 @@ private void finishReplacedFolder(string replacedDir, string appDir) {
 	collectException(rmdirRecurse(replacedDir));
 }
 
-// Puts a prepared folder in place of the app folder
-// The folder it replaces waits beside it until install() has finished the new one, so the app is never seen without a manifest
+// Swaps two folders in one step, so neither path is ever missing
+// Returns false where the file system cannot do that
+private bool exchangeFolders(string first, string second) {
+	return renameat2(AT_FDCWD, first.toStringz, AT_FDCWD, second.toStringz, RENAME_EXCHANGE) == 0;
+}
+
+// Puts a complete prepared folder in place of the app folder, and hands over the portable data of the folder it replaces
 private bool replaceAppFolder(string preparedDir, string appDir) {
 	string replacedDir = replacedFolderPath(appDir);
 	bool hadInstall = false;
@@ -893,8 +899,13 @@ private bool replaceAppFolder(string preparedDir, string appDir) {
 			std.file.remove(appDir);
 		} else if (exists(appDir)) {
 			writeln("Replacing existing installation: ", appDir);
-			rename(appDir, replacedDir);
 			hadInstall = true;
+			if (exchangeFolders(preparedDir, appDir)) {
+				rename(preparedDir, replacedDir);
+				finishReplacedFolder(replacedDir, appDir);
+				return true;
+			}
+			rename(appDir, replacedDir);
 		}
 		rename(preparedDir, appDir);
 	} catch (FileException error) {
@@ -903,16 +914,17 @@ private bool replaceAppFolder(string preparedDir, string appDir) {
 			collectException(rename(replacedDir, appDir));
 		return false;
 	}
+	if (hadInstall)
+		finishReplacedFolder(replacedDir, appDir);
 	return true;
 }
 
-// Hands the folder a new install replaced over to the app folder, or brings it back when no new folder took its place
-// Also completes an install that was cut off between taking the old folder away and finishing the new one
-private void settleReplacedFolder(string appDir) {
+// Completes an install that was cut off between taking the old folder away and finishing the new one
+private void recoverInterruptedInstall(string appDir) {
 	string replacedDir = replacedFolderPath(appDir);
 	if (!exists(replacedDir))
 		return;
-	writeln("install: settling the folder that ", appDir, " replaced");
+	writeln("install: finishing an install of ", appDir, " that was cut off");
 	if (exists(appDir)) {
 		finishReplacedFolder(replacedDir, appDir);
 		return;
@@ -934,9 +946,7 @@ private bool installByMethod(AppImage appImage) {
 // An app that is installed already keeps its install method, its portable data and what the user set for it
 public bool install(AppImage appImage) {
 	string appDirectory = buildPath(installBaseDir(), appImage.sanitizedName);
-	settleReplacedFolder(appDirectory);
-	scope (exit)
-		settleReplacedFolder(appDirectory);
+	recoverInterruptedInstall(appDirectory);
 	auto previous = Manifest.loadFromAppDir(appDirectory);
 	if (previous is null)
 		return installByMethod(appImage);

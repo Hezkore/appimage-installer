@@ -137,6 +137,14 @@ package Revealer makeSlideDownRevealer(int durationMs) {
 	return revealer;
 }
 
+// Logs "ui: NAME shown" each time the revealer has slid its child fully in, so a test can wait for that
+package void logWhenShown(Revealer revealer, string name) {
+	revealer.connectNotify("child-revealed", () {
+		if (revealer.getChildRevealed())
+			writeln("ui: ", name, " shown");
+	});
+}
+
 // Reveals one widget after a shared stage delay so pages follow the same cadence
 package void revealAfterDelay(
 	Revealer revealer,
