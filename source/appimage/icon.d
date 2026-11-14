@@ -4,7 +4,8 @@ import std.file : exists, copy, dirEntries, isDir, mkdirRecurse, readLink,
 	FileException, SpanMode, getAttributes, setAttributes;
 import std.path : buildPath, baseName, buildNormalizedPath, dirName;
 import std.path : extension, isAbsolute, stripExtension;
-import std.process : spawnProcess, ProcessException;
+import std.process : execute, ProcessException;
+import core.thread : Thread;
 import std.stdio : writeln;
 import std.string : startsWith, strip, toLower;
 
@@ -14,6 +15,9 @@ import constants : APPLICATIONS_SUBDIR, SYSTEM_ICON_THEME_PATH,
 import apputils : xdgDataHome;
 
 // Hicolor theme subdirectory for rasterized icons (PNG, XPM)
+// Seconds the icon cache tool may run before it is stopped
+private enum string ICON_CACHE_TIMEOUT_SECONDS = "30";
+
 private enum string ICON_DIR_PNG = "256x256";
 // Hicolor theme subdirectory for vector icons
 private enum string ICON_DIR_SVG = "scalable";
@@ -143,15 +147,23 @@ public void updateIconCache(string hicolorBase) {
 		}
 	}
 
-	try {
-		spawnProcess([
-			"gtk-update-icon-cache", "--force", "--quiet",
-			"--ignore-theme-index", hicolorBase
-		]);
-		writeln("Icon cache update started: ", hicolorBase);
-	} catch (ProcessException error) {
-		writeln("gtk-update-icon-cache not available: ", error.msg);
-	}
+	// The output goes to our log, since a stray icon from another app makes the
+	// cache tool fail and its message means nothing to someone installing an app
+	new Thread({
+		try {
+			auto result = execute([
+				"timeout", ICON_CACHE_TIMEOUT_SECONDS,
+				"gtk-update-icon-cache", "--force", "--quiet",
+				"--ignore-theme-index", hicolorBase
+			]);
+			if (result.status == 0)
+				writeln("Icon cache updated: ", hicolorBase);
+			else
+				writeln("Icon cache not updated: ", result.output.strip);
+		} catch (ProcessException error) {
+			writeln("gtk-update-icon-cache not available: ", error.msg);
+		}
+	}).start();
 }
 
 public string[] findInstalledIconPaths(string installedIconName) {

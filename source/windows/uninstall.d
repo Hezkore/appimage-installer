@@ -3,7 +3,7 @@ module windows.uninstall;
 import core.atomic : atomicLoad, atomicStore;
 import std.file : exists, isDir, isSymlink, remove, rmdirRecurse, FileException;
 import std.path : buildPath;
-import std.process : spawnProcess, wait, ProcessException;
+import appimage.icon : updateIconCache;
 import std.stdio : writeln;
 import std.string : toStringz;
 import std.typecons : Yes;
@@ -92,12 +92,7 @@ private void performUninstall(
 	}
 	atomicStore(*progress, cast(double) Progress.afterDesktop);
 
-	try {
-		string iconsDir = buildPath(xdgDataHome(), "icons", "hicolor");
-		wait(spawnProcess(["gtk-update-icon-cache", "-f", "-t", iconsDir]));
-	} catch (ProcessException error) {
-		writeln("UninstallWindow: gtk-update-icon-cache: ", error.msg);
-	}
+	updateIconCache(buildPath(xdgDataHome(), "icons", "hicolor"));
 	atomicStore(*progress, 1.0);
 }
 
