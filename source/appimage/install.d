@@ -882,7 +882,7 @@ private void finishReplacedFolder(string replacedDir, string appDir) {
 }
 
 // Puts a prepared folder in place of the app folder
-// An install that is there keeps its folder until the new one is in place, and hands over its portable data
+// The folder it replaces waits beside it until install() has finished the new one, so the app is never seen without a manifest
 private bool replaceAppFolder(string preparedDir, string appDir) {
 	string replacedDir = replacedFolderPath(appDir);
 	bool hadInstall = false;
@@ -903,17 +903,16 @@ private bool replaceAppFolder(string preparedDir, string appDir) {
 			collectException(rename(replacedDir, appDir));
 		return false;
 	}
-	if (hadInstall)
-		finishReplacedFolder(replacedDir, appDir);
 	return true;
 }
 
-// Completes an install that was cut off between taking the old folder away and finishing the new one
-private void recoverInterruptedInstall(string appDir) {
+// Hands the folder a new install replaced over to the app folder, or brings it back when no new folder took its place
+// Also completes an install that was cut off between taking the old folder away and finishing the new one
+private void settleReplacedFolder(string appDir) {
 	string replacedDir = replacedFolderPath(appDir);
 	if (!exists(replacedDir))
 		return;
-	writeln("install: finishing an install of ", appDir, " that was cut off");
+	writeln("install: settling the folder that ", appDir, " replaced");
 	if (exists(appDir)) {
 		finishReplacedFolder(replacedDir, appDir);
 		return;
@@ -935,7 +934,9 @@ private bool installByMethod(AppImage appImage) {
 // An app that is installed already keeps its install method, its portable data and what the user set for it
 public bool install(AppImage appImage) {
 	string appDirectory = buildPath(installBaseDir(), appImage.sanitizedName);
-	recoverInterruptedInstall(appDirectory);
+	settleReplacedFolder(appDirectory);
+	scope (exit)
+		settleReplacedFolder(appDirectory);
 	auto previous = Manifest.loadFromAppDir(appDirectory);
 	if (previous is null)
 		return installByMethod(appImage);

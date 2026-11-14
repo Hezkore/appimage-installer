@@ -531,6 +531,7 @@ package AppRowResult buildAppRow(ManageWindow win, ref InstalledApp entry) {
 			return;
 		capturedVersion = installedAppManifest.releaseVersion;
 		capturedUpdateInfo = installedAppManifest.updateInfo;
+		writeln("manage: row of ", capturedSanitizedName, " shows v", capturedVersion);
 		capturedIconName = installedAppManifest.installedIconName;
 		string desktopPath = buildPath(
 			capturedDir, APPLICATIONS_SUBDIR, capturedSanitizedName ~ DESKTOP_SUFFIX);

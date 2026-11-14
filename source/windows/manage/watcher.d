@@ -120,10 +120,19 @@ private void handleAppGone(ManageWindow win, size_t index) {
 	if (entry.isOrphan)
 		return;
 	entry.isOrphan = true;
+	writeln("watcher: ", entry.sanitizedName, " is gone");
 	if (hasStaleDesktopSymlink(entry))
 		transitionRowToOrphan(win, index);
 	else
 		silentlyHideRow(win, index);
+}
+
+// Stops every folder watch, so startWatcher can watch the folders as they are now
+package void stopWatcher(ManageWindow win) {
+	foreach (monitor; win.appMonitors)
+		monitor.cancel();
+	win.appMonitors = [];
+	win.watcherRunning = false;
 }
 
 // Watches the appimages and app directories for changes so removed rows hide immediately

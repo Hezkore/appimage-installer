@@ -50,7 +50,7 @@ import windows.base : CONTENT_REVEAL_DELAY_MS;
 import windows.manage.scan : InstalledApp, scanInstalledApps, buildEmptyBox, isStillInstalled;
 import windows.manage.row : AppRowResult, Layout;
 import windows.manage.row : makeReloadCallback, bindToggleClick, buildAppRow;
-import windows.manage.watcher : startWatcher, hasAnyActiveApps;
+import windows.manage.watcher : startWatcher, stopWatcher, hasAnyActiveApps;
 import windows.manage.watcher : watcherHideOrphanSection = hideOrphanSectionIfEmpty;
 import windows.manage.add : buildAddAppBox;
 import windows.settings : buildSettingsBox;
@@ -193,6 +193,7 @@ private void launchRowUpdate(
 	ProgressBar progressBar,
 	Label statusLabel,
 	Label updateLabel,
+	void delegate() reloadRow,
 	int* remaining,
 	Button updateAllBtn,
 	Button checkBtn,
@@ -225,6 +226,8 @@ private void launchRowUpdate(
 		bool capturedOk = ok;
 		string capturedError = error;
 		idleAdd(PRIORITY_DEFAULT, () {
+			import std.stdio : writeln;
+
 			done = true;
 			if (shouldCancel !is null && shouldCancel())
 				return false;
@@ -240,7 +243,10 @@ private void launchRowUpdate(
 					installedAppManifest.updateAvailable = false;
 					installedAppManifest.save();
 				}
+				writeln("manage: ", entry.sanitizedName, " updated");
+				reloadRow();
 			} else {
+				writeln("manage: ", entry.sanitizedName, " failed: ", capturedError);
 				statusLabel.addCssClass("warning");
 				statusLabel.setText(L("manage.installer.update.failed", capturedError));
 			}
@@ -249,6 +255,10 @@ private void launchRowUpdate(
 				updateAllBtn.setSensitive(true);
 				checkBtn.setSensitive(true);
 				win.syncUpdateState();
+				writeln("manage: update all finished");
+				// An update puts a new app folder in place, so the watch moves to the new folders
+				stopWatcher(win);
+				startWatcher(win);
 			}
 			return false;
 		});
@@ -364,10 +374,7 @@ class ManageWindow : AppWindow {
 
 	// Rebuilds the UI in-place so no window is destroyed or recreated
 	override protected void reloadWindow() {
-		foreach (m; this.appMonitors)
-			m.cancel();
-		this.appMonitors = [];
-		this.watcherRunning = false;
+		stopWatcher(this);
 		this.rowResults = [];
 		this.searchIsOpen = false;
 		this.headerBar = new HeaderBar;
@@ -746,6 +753,7 @@ class ManageWindow : AppWindow {
 					r.updateProgressBar,
 					r.updateStatusLabel,
 					r.updateLabel,
+					r.reloadRow,
 					remaining,
 					capturedUpdateAllButton,
 					this.checkButton,
@@ -997,10 +1005,7 @@ class ManageWindow : AppWindow {
 		this.setupDropTarget();
 
 		startWatcher(this);
-		this.connectDestroy(() {
-			foreach (m; this.appMonitors)
-				m.cancel();
-		});
+		this.connectDestroy(() { stopWatcher(this); });
 	}
 
 	// Registers a DropTarget on this window for .AppImage files
@@ -1062,9 +1067,7 @@ class ManageWindow : AppWindow {
 
 	// Replaces subSlot content and slides navStack left to the sub page
 	package void slideToSub(Widget content) {
-		foreach (m; this.appMonitors)
-			m.cancel();
-		this.appMonitors = [];
+		stopWatcher(this);
 		if (this.searchIsOpen) {
 			this.searchIsOpen = false;
 			this.headerBar.setTitleWidget(null);
