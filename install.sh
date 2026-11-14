@@ -118,10 +118,11 @@ main() {
 
 	"${INSTALL_DIR}/${BINARY}" --desktop "${DESKTOP_DIR}" >/dev/null
 
+	local associated="false"
 	if ask "Associate .AppImage files with ${BINARY}?"; then
 		require_command xdg-mime xdg-utils
 		"${INSTALL_DIR}/${BINARY}" --associate
-		echo "  -> Double-clicking .AppImage files will open them with ${BINARY}"
+		associated="true"
 	else
 		echo "  -> Skipping file association"
 		echo "  -> To associate later, run: ${BINARY} --associate"
@@ -151,7 +152,9 @@ main() {
 	echo "Done"
 	echo ""
 	echo "You'll find the AppImage Installer in your application launcher as 'AppImage Installer'"
-	echo "If you associated .AppImage files, you can simply install them by double-clicking them in your file manager"
+	if [[ "${associated}" == "true" ]]; then
+		echo "Double-click any .AppImage file in your file manager to install the file"
+	fi
 
 	# Warn if the install directory is not on PATH so the binary can actually be found
 	if [[ ":${PATH}:" != *":${INSTALL_DIR}:"* ]]; then
